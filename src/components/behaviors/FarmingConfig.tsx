@@ -42,6 +42,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     const obstacleAvoidanceDebugModal = useModal(debugModal)
     const fleeModal = useModal(debugModal)
     const namesModal = useModal(debugModal)
+    const areaModal = useModal(debugModal)
     const duoModal = useModal(debugModal)
 
     const selectedMobType = useRef(0)
@@ -127,6 +128,10 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         item={<button onClick={namesModal.open}>⚙️</button>}
                     />
                     <ConfigTableRow
+                        label={<ConfigLabel name="Stay in area" helpText="Walk back when the bot drifts too far from where it was engaged" />}
+                        item={<button onClick={areaModal.open}>⚙️</button>}
+                    />
+                    <ConfigTableRow
                         label={<ConfigLabel name="Giant & violet flee" helpText="Run away when a violet or giant gets close" />}
                         item={<button onClick={fleeModal.open}>⚙️</button>}
                     />
@@ -192,6 +197,25 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         layout="v"
                         label={<ConfigLabel name="Obstacle avoidance max try" helpText="After this number of try it'll abort attack and search for another target" />}
                         item={<NumericInput unit='#' value={config.obstacle_avoidance_max_try} onChange={value => onChange({...config, obstacle_avoidance_max_try: value})} />}
+                    />
+                </ConfigTable>
+            }/>
+            <Modal isShowing={areaModal.isShown} hide={areaModal.close} title={<h4>Stay in area</h4>} body={
+                <ConfigTable>
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Enabled" helpText="Remembers where you pressed Engage. Between fights it types /coordinates now and then, and walks back if you are farther away than the radius. The chat box must be visible." />}
+                        item={<BooleanSlider value={config.stay_in_area ?? false} onChange={value => onChange?.({ ...config, stay_in_area: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Radius" helpText="How far you may go from the starting point, in game units (the numbers /coordinates shows). Default: 50" />}
+                        item={<NumericInput unit='#' value={config.area_radius ?? 50} onChange={value => onChange({...config, area_radius: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Check every" helpText="Seconds between position checks. Default: 20" />}
+                        item={<NumericInput unit='s' value={config.area_check_interval ?? 20} onChange={value => onChange({...config, area_check_interval: value})} />}
                     />
                 </ConfigTable>
             }/>

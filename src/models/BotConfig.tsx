@@ -114,6 +114,9 @@ export type FarmingConfigModel = Partial<{
     afk_timeout: number,
     afk_ready_to_disconnect: boolean,
 
+    area_radius: number,
+    area_check_interval: number,
+
     giant_flee: boolean,
     flee_radius: number,
     giant_mobs_colors: number[],

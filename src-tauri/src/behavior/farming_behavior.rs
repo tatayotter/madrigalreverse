@@ -12,7 +12,9 @@ use crate::{
     movement::MovementAccessor,
     duo::{ self, HealerStatus },
     monster_db::{ monster_db, normalize },
+    navigator::{ self, Navigator },
     platform::{ eval_mob_click, send_slot_eval },
+    position::{ self, Position },
     play,
     utils::DateTime,
 };
@@ -79,6 +81,11 @@ pub struct FarmingBehavior<'a> {
     escaped_from_healer_death: bool,
     /// The healer is being hit: only go for aggressive monsters
     protecting_healer: bool,
+    /// Stay in area: where the bot was engaged
+    home: Option<Position>,
+    last_position: Option<Position>,
+    last_area_check: Option<Instant>,
+    navigator: Navigator,
 }
 
 impl<'a> Behavior<'a> for FarmingBehavior<'a> {
@@ -121,6 +128,10 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             healer_was_alive: false,
             escaped_from_healer_death: false,
             protecting_healer: false,
+            home: None,
+            last_position: None,
+            last_area_check: None,
+            navigator: Navigator::default(),
         }
     }
 
@@ -130,6 +141,9 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
     }
 
     fn interupt(&mut self, _config: &BotConfig) {
+        // A new Engage sets a new home
+        self.home = None;
+        self.last_area_check = None;
         self.stop(_config);
     }
 
@@ -182,6 +196,14 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
 
         // Duo: don't pull a new monster while the healer can't keep up
         if self.should_wait_for_healer(config) {
+            frontend_info.set_is_attacking(false);
+            return;
+        }
+
+        // Stay in area: between fights, walk back if we drifted too far
+        if matches!(self.state, State::SearchingForEnemy | State::NoEnemyFound)
+            && self.check_area(config, image)
+        {
             frontend_info.set_is_attacking(false);
             return;
         }
@@ -332,6 +354,129 @@ impl FarmingBehavior<'_> {
             }
             None => false,
         }
+    }
+
+    /// Type /coordinates and read the reply from the chat box.
+    fn read_position(&mut self, image: &mut ImageAnalyzer) -> Option<Position> {
+        use crate::movement::prelude::*;
+        play!(self.movement => [
+            PressKey("Enter"),
+            Wait(dur::Fixed(150)),
+            Type("/coordinates".to_string()),
+            Wait(dur::Fixed(100)),
+            PressKey("Enter"),
+            Wait(dur::Fixed(450)),
+        ]);
+        image.capture_window(self.logger);
+        let read = image.image().and_then(|img| position::read(img, self.logger));
+        play!(self.movement => [
+            PressKey("Escape"),
+            Wait(dur::Fixed(100)),
+        ]);
+        read
+    }
+
+    /// Read the position twice if it looks like we jumped far (an OCR digit mistake).
+    fn read_position_checked(&mut self, image: &mut ImageAnalyzer) -> Option<Position> {
+        const MAX_JUMP: f32 = 400.0;
+        let first = self.read_position(image)?;
+        let suspicious = self.last_position.map_or(false, |last| last.distance_to(&first) > MAX_JUMP);
+        let pos = if suspicious {
+            let second = self.read_position(image)?;
+            if second.distance_to(&first) > 5.0 {
+                slog::warn!(self.logger, "Position reads disagree, ignoring them"; "first" => format!("{:?}", first), "second" => format!("{:?}", second));
+                return None;
+            }
+            second
+        } else {
+            first
+        };
+        self.last_position = Some(pos);
+        Some(pos)
+    }
+
+    /// Stay in area. Returns true if it used this iteration (read the position or walked).
+    fn check_area(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer) -> bool {
+        if !config.stay_in_area() || self.is_under_attack() {
+            return false;
+        }
+        let due = self
+            .last_area_check
+            .map_or(true, |t| t.elapsed().as_secs() >= config.area_check_interval());
+        if !due {
+            return false;
+        }
+        self.last_area_check = Some(Instant::now());
+
+        let Some(pos) = self.read_position_checked(image) else {
+            slog::warn!(self.logger, "Couldn't read the position"; "hint" => "keep the chat box visible and uncovered");
+            return true;
+        };
+        let Some(home) = self.home else {
+            slog::info!(self.logger, "Area home set"; "x" => pos.x, "z" => pos.z, "radius" => config.area_radius());
+            self.home = Some(pos);
+            return true;
+        };
+        let dist = pos.distance_to(&home);
+        slog::debug!(self.logger, "Distance from home"; "distance" => dist, "radius" => config.area_radius());
+        if dist > config.area_radius() {
+            slog::info!(self.logger, "Too far from home, walking back"; "distance" => dist);
+            self.walk_home(config, image, home, pos);
+            self.avoided_bounds.clear();
+            self.state = State::SearchingForEnemy;
+            self.last_area_check = Some(Instant::now());
+        }
+        true
+    }
+
+    /// Walk back towards `home`: short walks, measuring the direction after each,
+    /// turning towards home in between.
+    fn walk_home(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer, home: Position, start: Position) {
+        use crate::movement::prelude::*;
+        // Close enough: well inside the area, so we don't bounce on the edge
+        let arrive = config.area_radius() * 0.4;
+        let mut before = start;
+        let mut walk_ms = 600;
+        play!(self.movement => [HoldKeyFor("W", dur::Fixed(walk_ms)),]);
+
+        for _ in 0..12 {
+            if self.is_under_attack() {
+                slog::info!(self.logger, "Attacked while walking home, fighting first");
+                return;
+            }
+            let Some(pos) = self.read_position_checked(image) else { return };
+            let dist = pos.distance_to(&home);
+            if dist <= arrive {
+                slog::info!(self.logger, "Back home"; "distance" => dist);
+                return;
+            }
+            let moved = pos.distance_to(&before);
+            if moved < 0.5 {
+                // Stuck on something: jump to the side
+                slog::debug!(self.logger, "Not moving, jumping"; "moved" => moved);
+                let key = ["A", "D"].choose(&mut self.rng).copied().unwrap_or("A");
+                play!(self.movement => [
+                    HoldKeyFor(key, dur::Fixed(300)),
+                    HoldKeys(vec!["W", "Space"]),
+                    Wait(dur::Fixed(800)),
+                    ReleaseKeys(vec!["Space", "W"]),
+                ]);
+                before = pos;
+                walk_ms = 800;
+                continue;
+            }
+            let heading = navigator::heading(pos.x - before.x, pos.z - before.z);
+            self.navigator.learn_walk(moved, walk_ms, heading);
+            let want = navigator::heading(home.x - pos.x, home.z - pos.z);
+            if let Some((key, ms)) = self.navigator.turn_for(navigator::angle_diff(want, heading), heading) {
+                play!(self.movement => [HoldKeyFor(key.key(), dur::Fixed(ms)),]);
+            }
+            walk_ms = self.navigator.walk_ms(dist);
+            slog::debug!(self.logger, "Walking home"; "distance" => dist, "walk_ms" => walk_ms, "turn_rate" => self.navigator.turn_rate, "speed" => self.navigator.speed);
+            before = pos;
+            play!(self.movement => [HoldKeyFor("W", dur::Fixed(walk_ms)),]);
+        }
+        slog::warn!(self.logger, "Gave up walking home after 12 steps");
     }
 
     fn is_under_attack(&self) -> bool {
