@@ -233,6 +233,21 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                     />
                     <ConfigTableRow
                         layout="v"
+                        label={<ConfigLabel name="Protect healer" helpText="When the healer is being hit, drop passive targets and go for the aggressive (red) monsters. Default: on" />}
+                        item={<BooleanSlider value={config.duo_protect_healer ?? true} onChange={value => onChange?.({ ...config, duo_protect_healer: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Fly away when healer dies" helpText="Drop the fight, use the board in your Flying slot and fly away, then wait in the air until the healer is back. Put your board in a slot set to 'Board'. Default: on" />}
+                        item={<BooleanSlider value={config.duo_escape_on_healer_death ?? true} onChange={value => onChange?.({ ...config, duo_escape_on_healer_death: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Fly away for" helpText="How long to fly away before waiting. Default: 6s" />}
+                        item={<TimeInput value={config.duo_escape_fly_duration ?? 6000} onChange={value => onChange({...config, duo_escape_fly_duration: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
                         label={<ConfigLabel name="Healer min HP" helpText="Wait while the healer's HP is below this. Default: 40" />}
                         item={<NumericInput unit='%' value={config.duo_healer_min_hp ?? 40} onChange={value => onChange({...config, duo_healer_min_hp: value})} />}
                     />

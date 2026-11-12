@@ -562,6 +562,16 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                         false
                     }
                     AliveState::Dead => {
+                        // Duo: the healer's behavior doesn't run while dead, so report it here
+                        if mode == BotMode::Support && config.support_config().duo_link() {
+                            duo::publish_healer(&duo::HealerStatus {
+                                updated_ms: duo::now_ms(),
+                                alive: false,
+                                hp: 0,
+                                mp: image_analyzer.client_stats.mp.value,
+                                ..Default::default()
+                            });
+                        }
                         if frontend_info_mut.is_alive() {
                             let should_disconnect = should_disconnect_on_death(config);
                             if should_disconnect {
