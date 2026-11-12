@@ -17,6 +17,7 @@ import ShoutConfig from "./components/behaviors/ShoutConfig"
 import Footer from "./components/Footer"
 import { FrontendInfoModel } from "./models/FrontendInfo"
 import { invoke } from "@tauri-apps/api"
+import { writeText } from "@tauri-apps/api/clipboard"
 import { useStopWatch } from "./components/utils/StopWatch"
 
 //type Bounds = {x: number, y: number, w: number, h: number}
@@ -28,6 +29,16 @@ type Props = {
 }
 
 const MissionControl = ({ className, lastVersion, currentVersion }: Props) => {
+    const [logsCopied, setLogsCopied] = useState(false)
+    const copyLogs = () => {
+        invoke<string>("get_logs", { lines: 300 })
+            .then(text => writeText(text))
+            .then(() => {
+                setLogsCopied(true)
+                setTimeout(() => setLogsCopied(false), 2000)
+            })
+            .catch(e => console.error("Could not copy logs", e))
+    }
     //const [imageData, setImageData] = useState({ data: '', width: 0, height: 0 })
     const [info, setInfo] = useState<FrontendInfoModel | null>(null);
     const [config, setConfig] = useState<BotConfigModel | null>(null);
@@ -109,6 +120,8 @@ const MissionControl = ({ className, lastVersion, currentVersion }: Props) => {
                     <div className="sm footerCombinedBtn">
                         {!isNil(config?.mode) && <div className="btn sm" onClick={toogleLightMode}>Compact</div>}
                         {!isNil(config?.mode) && <div className="btn sm" onClick={() => {invoke("focus_client")}}>Focus</div>}
+                        <div className="btn sm" title="Copy the latest log lines to paste into a bug report" onClick={copyLogs}>{logsCopied ? 'Copied!' : 'Copy logs'}</div>
+                        <div className="btn sm" title="Open the folder with the log files" onClick={() => {invoke("open_log_folder")}}>Log folder</div>
                     </div>
                     {!isNil(config?.mode) && <div className="btn" onClick={setRunningToggle}>{config?.is_running ? 'Disengage' : 'Engage'}</div>}
                 </div>

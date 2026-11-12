@@ -4,6 +4,7 @@ mod behavior;
 mod data;
 mod image_analyzer;
 mod ipc;
+mod log_file;
 mod monster_db;
 mod movement;
 mod notifications;
@@ -31,6 +32,7 @@ use crate::{
 
 struct AppState {
     logger: Logger,
+    version: String,
 }
 
 fn main() {
@@ -60,14 +62,28 @@ fn main() {
             .fuse();
         slog_async::Async::new(drain).build().fuse()
     };
-    let drain = sentry_slog::SentryDrain::new(drain).fuse();
-    let logger = Logger::root(drain.fuse(), slog::o!());
+    // Also write everything from Debug up to a log file (see log_file.rs)
+    let file_drain = tauri::api::path::app_log_dir(context.config())
+        .and_then(log_file::open)
+        .map(|file| {
+            let decorator = slog_term::PlainSyncDecorator::new(file);
+            slog_term::FullFormat::new(decorator).build().filter_level(Level::Debug).fuse()
+        });
+    let logger = match file_drain {
+        Some(file_drain) => {
+            let both = slog::Duplicate::new(drain, file_drain).fuse();
+            Logger::root(sentry_slog::SentryDrain::new(both).fuse(), slog::o!())
+        }
+        None => Logger::root(sentry_slog::SentryDrain::new(drain).fuse(), slog::o!()),
+    };
+    log_file::install_panic_hook();
+    slog::info!(logger, "Neuz started"; "version" => &neuz_version);
 
     // Build app
     tauri::Builder
         ::default()
         // .menu(tauri::Menu::os_default(&context.package_info().name))
-        .manage(AppState { logger })
+        .manage(AppState { logger, version: neuz_version.clone() })
         .invoke_handler(
             tauri::generate_handler![
                 start_bot,
@@ -79,11 +95,32 @@ fn main() {
                 copy_profile,
                 reset_profile,
                 focus_client,
-                toggle_main_size
+                toggle_main_size,
+                get_logs,
+                open_log_folder
             ]
         )
         .run(context)
         .expect("error while running tauri application");
+}
+
+/// The end of the log file, ready to paste into a bug report.
+#[tauri::command]
+fn get_logs(lines: Option<usize>, state: tauri::State<AppState>) -> String {
+    log_file::tail(lines.unwrap_or(300), &state.version)
+}
+
+/// Open the folder that holds the log files.
+#[tauri::command]
+fn open_log_folder() {
+    if let Some(dir) = log_file::log_dir() {
+        #[cfg(windows)]
+        let _ = std::process::Command::new("explorer").arg(dir).spawn();
+        #[cfg(target_os = "macos")]
+        let _ = std::process::Command::new("open").arg(dir).spawn();
+        #[cfg(target_os = "linux")]
+        let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+    }
 }
 
 #[tauri::command]
