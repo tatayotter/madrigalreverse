@@ -18,6 +18,7 @@ import { MsFormat, StopWatchValues } from '../utils/StopWatch'
 import { DefaultValuesChecker } from '../utils/DefaultValuesChecker'
 import TimeInput from '../config/TimeInput'
 import TextInput from '../config/TextInput'
+import StringList from '../config/StringList'
 
 type Props = {
     className?: string,
@@ -41,6 +42,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     const obstacleAvoidanceDebugModal = useModal(debugModal)
     const fleeModal = useModal(debugModal)
     const discordModal = useModal(debugModal)
+    const namesModal = useModal(debugModal)
 
     const selectedMobType = useRef(0)
 
@@ -98,6 +100,10 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                     <ConfigTableRow
                         label={<ConfigLabel name="Avoidances" helpText="" />}
                         item={<button onClick={obstacleAvoidanceDebugModal.open}>⚙️</button>}
+                    />
+                    <ConfigTableRow
+                        label={<ConfigLabel name="Monster names" helpText="Read monster names from the screen to skip giants and pick which monsters to attack" />}
+                        item={<button onClick={namesModal.open}>⚙️</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Giant & violet flee" helpText="Run away when a violet or giant gets close" />}
@@ -190,6 +196,25 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         layout="v"
                         label={<ConfigLabel name="" helpText="" />}
                         item={<button onClick={() => onChange?.({ ...config, giant_mobs_colors: undefined })}>Clear giant color</button>}
+                    />
+                </ConfigTable>
+            }/>
+            <Modal isShowing={namesModal.isShown} hide={namesModal.close} title={<h4>Monster names</h4>} body={
+                <ConfigTable>
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Read monster names" helpText="Windows only. Reads name tags with the OCR built into Windows and looks them up in the Flyff Universe monster list. Giants, violets and bosses are never attacked, and are fled from when Giant & violet flee is on." />}
+                        item={<BooleanSlider value={config.name_reading ?? false} onChange={value => onChange?.({ ...config, name_reading: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Only attack these" helpText="One monster name per line, then press Apply. Leave empty to attack everything." />}
+                        item={<StringList messages={config.monster_whitelist} onChange={value => onChange?.({ ...config, monster_whitelist: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Never attack these" helpText="One monster name per line, then press Apply." />}
+                        item={<StringList messages={config.monster_blacklist} onChange={value => onChange?.({ ...config, monster_blacklist: value })} />}
                     />
                 </ConfigTable>
             }/>

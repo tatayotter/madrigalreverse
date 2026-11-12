@@ -122,6 +122,10 @@ export type FarmingConfigModel = Partial<{
     discord_notify_death: boolean,
     discord_notify_danger: boolean,
     discord_notify_disconnect: boolean,
+
+    name_reading: boolean,
+    monster_whitelist: string[],
+    monster_blacklist: string[],
 }>
 
 export type SupportConfigModel = Partial<{

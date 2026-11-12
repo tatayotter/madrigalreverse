@@ -82,6 +82,7 @@ dependencies = [
  "slog-term",
  "tauri",
  "tauri-build",
+ "windows 0.56.0",
 ]
 
 [[package]]

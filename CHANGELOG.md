@@ -10,6 +10,7 @@ Date format: `DD/MM/YYYY`
 - Farming
     - Anti-killsteal is back: monsters that are already hurt when targeted are skipped, unless something is hitting you
     - Giant & violet flee: drops the target, turns away and runs when a violet (or a giant, with a configurable name color) comes within a set radius
+    - Monster name reading (Windows): reads name tags with Windows' built-in OCR and matches them against the official Flyff Universe monster list (downloaded once, cached for a week). Giants, violets and bosses are never attacked and trigger flee; optional "only attack" and "never attack" name lists
 - Notifications
     - Discord webhook alerts on death, giant/violet nearby (max once a minute) and auto-disconnect
 
