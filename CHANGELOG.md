@@ -7,6 +7,9 @@ Date format: `DD/MM/YYYY`
 <!-- /maintainers -->
 
 **Unreleased (fork)**
+- Debug
+    - Screenshot recorder (Farming Settings): saves frames + detection results to the recordings folder for offline testing
+    - Copy logs / Log folder buttons, log file with crash backtraces
 - Duo (farmer + healer on one PC)
     - Support mode "Duo link" shares the healer's HP/MP, distance to the farmer and nearby giants/violets
     - Farming "Duo with healer": between fights, waits while the healer is dead, low on HP/MP or too far; flees when the healer sees danger

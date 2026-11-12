@@ -10,6 +10,7 @@ mod monster_db;
 mod movement;
 mod ocr;
 mod platform;
+mod recorder;
 mod utils;
 
 use std::{ fs, io, path::{ Path, PathBuf }, sync::Arc, time::Duration };
@@ -97,7 +98,10 @@ fn main() {
                 focus_client,
                 toggle_main_size,
                 get_logs,
-                open_log_folder
+                open_log_folder,
+                start_recording,
+                stop_recording,
+                open_recordings_folder
             ]
         )
         .run(context)
@@ -110,16 +114,43 @@ fn get_logs(lines: Option<usize>, state: tauri::State<AppState>) -> String {
     log_file::tail(lines.unwrap_or(300), &state.version)
 }
 
+/// Open a folder in the system file manager.
+fn open_folder(dir: &std::path::Path) {
+    let _ = std::fs::create_dir_all(dir);
+    #[cfg(windows)]
+    let _ = std::process::Command::new("explorer").arg(dir).spawn();
+    #[cfg(target_os = "macos")]
+    let _ = std::process::Command::new("open").arg(dir).spawn();
+    #[cfg(target_os = "linux")]
+    let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+}
+
 /// Open the folder that holds the log files.
 #[tauri::command]
 fn open_log_folder() {
     if let Some(dir) = log_file::log_dir() {
-        #[cfg(windows)]
-        let _ = std::process::Command::new("explorer").arg(dir).spawn();
-        #[cfg(target_os = "macos")]
-        let _ = std::process::Command::new("open").arg(dir).spawn();
-        #[cfg(target_os = "linux")]
-        let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
+        open_folder(dir);
+    }
+}
+
+/// Start saving game frames (and what the bot detected in them) for offline testing.
+#[tauri::command]
+fn start_recording(frames: Option<u32>, interval_ms: Option<u64>, state: tauri::State<AppState>) -> Option<String> {
+    let dir = recorder::start(frames.unwrap_or(60), interval_ms.unwrap_or(1000))?;
+    slog::info!(state.logger, "Recording started"; "folder" => dir.display().to_string());
+    Some(dir.display().to_string())
+}
+
+#[tauri::command]
+fn stop_recording() {
+    recorder::stop();
+}
+
+/// Open the folder that holds all recordings.
+#[tauri::command]
+fn open_recordings_folder() {
+    if let Some(dir) = recorder::recordings_dir() {
+        open_folder(dir);
     }
 }
 
@@ -347,6 +378,7 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
 
     if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
         duo::init(app_data_dir.clone());
+        recorder::init(app_data_dir.clone());
         monster_db::init(app_data_dir, logger.clone());
     }
 
@@ -533,6 +565,7 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
             if image_analyzer.image_is_some() {
                 // Update stats
                 image_analyzer.client_stats.update(&image_analyzer.clone(), &logger);
+                recorder::on_frame(&image_analyzer, config.farming_config(), &logger);
 
                 // Run the current behavior
                 guard!(let Some(mode) = config.mode() else { continue; });
