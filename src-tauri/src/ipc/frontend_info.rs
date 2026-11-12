@@ -16,14 +16,6 @@ pub struct FrontendInfo {
 }
 
 impl FrontendInfo {
-    /*  pub fn set_enemy_bounds(&mut self, enemy_bounds: Vec<Bounds>) {
-           self.enemy_bounds = Some(enemy_bounds);
-       }
-
-       pub fn set_active_enemy_bounds(&mut self, active_enemy_bounds: Bounds) {
-           self.active_enemy_bounds = Some(active_enemy_bounds);
-       }
-    */
     pub fn set_afk_ready_to_disconnect(&mut self, afk_ready_to_disconnect: bool) {
         self.afk_ready_to_disconnect = afk_ready_to_disconnect
     }
@@ -59,12 +51,6 @@ impl FrontendInfo {
         self.is_alive
     }
     /// Serialize config to disk
-    /* pub fn serialize(&self) {
-        let config = {
-            let config = self.clone();
-            config
-        };
-    } */
 
     /// Deserialize config from disk
     pub fn deserialize_or_default() -> Self {

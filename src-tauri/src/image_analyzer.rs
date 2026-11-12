@@ -3,7 +3,6 @@ use std::{
     time::Instant,
 };
 
-//use libscreenshot::shared::Area;
 use libscreenshot::{ImageBuffer, WindowCaptureProvider};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use slog::Logger;
@@ -44,6 +43,7 @@ impl ImageAnalyzer {
     }
 
     /// Analyse a saved screenshot instead of a live window (recordings, tests).
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn from_image(image: ImageBuffer) -> Self {
         Self {
             window_id: 0,
@@ -124,9 +124,6 @@ impl ImageAnalyzer {
                     for ref_color in colors.iter() {
                         // Check if the pixel matches any of the reference colors
                         if Self::pixel_matches(&px.0, &ref_color.refs, tolerence.unwrap_or(5)) {
-                            // #[allow(dropping_copy_types)]
-                            // drop(snd.try_send(Point::new(x, y)));
-                            // drop(snd.send(Point::new(x, y)));
                             #[allow(dropping_copy_types)]
                             drop(snd.try_send(Point::new(x, y)).map_err(|err| {
                                 eprintln!("Error sending data: {}", err);
@@ -325,10 +322,10 @@ impl ImageAnalyzer {
                         continue;
                     }
                     if Self::pixel_matches(&px.0, &ref_violet, violet_tolerance) {
-                        drop(snd.send((x, y, MobType::Violet)));
+                        let _ = snd.send((x, y, MobType::Violet));
                     } else if let Some(giant) = giant {
                         if Self::pixel_matches(&px.0, &giant, giant_tolerance) {
-                            drop(snd.send((x, y, MobType::Giant)));
+                            let _ = snd.send((x, y, MobType::Giant));
                         }
                     }
                 }
@@ -440,11 +437,8 @@ impl ImageAnalyzer {
                 Color::new(246, 90, 106) //F65A6A -- redish
             }
             //changed the Original colors (below), because they don't work in Azria
-            // if !blank_target {
             //     Color::new(246, 90, 106) //F65A6A
-            // } else {
             //     Color::new(164, 180, 226) //A4B4E1
-            // }
         };
 
         // Collect pixel clouds
@@ -456,22 +450,8 @@ impl ImageAnalyzer {
         }
 
         // // Receive points from channel
-        // loop {
-        //     match recv.recv() {
-        //         Ok(point) => {
-        //             coords.push(point);
-        //         }
-        //         Err(std::sync::mpsc::RecvError) => {
-        //             eprintln!("Error receiving data, channel is closed");
         //             // Channel is closed, break the loop
-        //             break;
-        //         }
-        //         Err(err) => {
-        //             eprintln!("Error receiving data: {}", err);
         //             // Handle other errors if needed
-        //         }
-        //     }
-        // }
 
         // Identify target marker entities
         let target_markers =
@@ -501,7 +481,6 @@ impl ImageAnalyzer {
     pub fn find_closest_mob<'a>(
         &self,
         mobs: &'a [Target],
-        //avoid_bounds: Option<&Bounds>,
         avoid_list: Option<&Vec<(Bounds, Instant, u128)>>,
         max_distance: i32,
         _logger: &Logger,
@@ -541,13 +520,11 @@ impl ImageAnalyzer {
                 let mut result = true;
                 for avoided_item in avoided_bounds {
                     if avoided_item.0.contains_point(&coords) {
-                        //slog::debug!(logger, ""; "Avoided bounds" => avoided_item.0);
                         result = false;
                         break;
                     }
                 }
                 result // && *distance > 20
-                       // let coords = mob.name_bounds.get_lowest_center_point();
                        // !avoid_bounds.grow_by(100).contains_point(&coords) && *distance > 200
             }) {
                 Some(mob)

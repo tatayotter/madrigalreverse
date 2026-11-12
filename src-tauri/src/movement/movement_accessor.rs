@@ -1,7 +1,6 @@
 use parking_lot::Mutex;
 use tauri::Window;
 
-//use crate::platform::PlatformAccessor;
 use super::MovementCoordinator;
 
 pub struct MovementAccessor {

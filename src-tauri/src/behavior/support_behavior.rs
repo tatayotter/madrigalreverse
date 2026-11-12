@@ -42,7 +42,6 @@ pub struct SupportBehavior<'a> {
     has_target: bool,
     self_buffing: bool,
     target_buffing: bool,
-    //is_on_flight: bool,
     buff_counter: u32,
 
     leader_in_range: bool,
@@ -70,7 +69,6 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
             self_buffing: false,
             target_buffing: false,
             buff_counter: 0,
-            //is_on_flight: false,
             leader_in_range: false,
             last_duo_publish: None,
             last_danger_scan: None,
@@ -119,7 +117,6 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
 
         self.follow_target();
         if self.rez_target(config, image) {
-            //slog::debug!(self.logger, "Rezzing target");
             if self.is_waiting_for_revive {
                 if image.client_stats.target_hp.value > 0 {
                     self.is_waiting_for_revive = false;
@@ -162,7 +159,6 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
         let target_buff = self.get_slot_for(config, None, SlotType::BuffSkill, false, None);
 
         if self.self_buffing == false && image.client_stats.target_is_alive {
-            //slog::debug!(self.logger, "Buffing target");
             self.send_buff(config, target_buff, false);
         }
     }
@@ -225,7 +221,6 @@ impl SupportBehavior<'_> {
             ReleaseKey(&self.avoid_obstacle_direction),
             Wait(dur::Fixed(500)),
             ReleaseKeys(vec!["Space", "W"]),
-            //HoldKeyFor("S", dur::Fixed(50)),
             PressKey("Z"),
         ]);
 
@@ -311,12 +306,9 @@ impl SupportBehavior<'_> {
     fn wait_cooldown(&mut self) -> bool {
         if self.wait_duration.is_some() {
             if self.wait_start.elapsed() < self.wait_duration.unwrap() {
-                //let remaining = self.wait_duration.unwrap() - self.wait_start.elapsed();
-                //slog::debug!(self.logger, "Waiting for {:?} Remaining {:?}", self.wait_duration.unwrap(), remaining);
                 return true;
             } else {
                 self.wait_duration = None;
-                //slog::debug!(self.logger, "Wait time finished");
             }
         }
         return false;
@@ -350,7 +342,6 @@ impl SupportBehavior<'_> {
     }
 
     fn select_party_leader(&mut self, _config: &SupportConfig) {
-        //slog::debug!(self.logger, "selecting party leader");
         //attempt to get party leader
         play!(self.movement => [
             // Open party menu
@@ -379,32 +370,26 @@ impl SupportBehavior<'_> {
     fn update_slots_usage(&mut self, config: &SupportConfig) {
         for (slotbar_index, slot_bars) in self.slots_usage_last_time.into_iter().enumerate() {
             for (slot_index, last_time) in slot_bars.into_iter().enumerate() {
-                let cooldown = config
+                let cooldown = u128::from(config
                     .get_slot_cooldown(slotbar_index, slot_index)
-                    .unwrap_or(100)
-                    .try_into();
+                    .unwrap_or(100));
                 if let Some(last_time) = last_time {
-                    if let Ok(cooldown) = cooldown {
-                        let slot_last_time = last_time.elapsed().as_millis();
-                        if slot_last_time > cooldown {
-                            self.slots_usage_last_time[slotbar_index][slot_index] = None;
-                        }
+                    let slot_last_time = last_time.elapsed().as_millis();
+                    if slot_last_time > cooldown {
+                        self.slots_usage_last_time[slotbar_index][slot_index] = None;
                     }
                 }
             }
         }
         for (slotbar_index, slot_bars) in self.self_buff_usage_last_time.into_iter().enumerate() {
             for (slot_index, last_time) in slot_bars.into_iter().enumerate() {
-                let cooldown = config
+                let cooldown = u128::from(config
                     .get_slot_cooldown(slotbar_index, slot_index)
-                    .unwrap_or(100)
-                    .try_into();
+                    .unwrap_or(100));
                 if let Some(last_time) = last_time {
-                    if let Ok(cooldown) = cooldown {
-                        let slot_last_time = last_time.elapsed().as_millis();
-                        if slot_last_time > cooldown {
-                            self.self_buff_usage_last_time[slotbar_index][slot_index] = None;
-                        }
+                    let slot_last_time = last_time.elapsed().as_millis();
+                    if slot_last_time > cooldown {
+                        self.self_buff_usage_last_time[slotbar_index][slot_index] = None;
                     }
                 }
             }
@@ -485,7 +470,6 @@ impl SupportBehavior<'_> {
                 if config.is_in_party() {
                     self.lose_target();
                     self.send_slot(heal.unwrap(), true);
-                    //self.wait(Duration::from_millis(HEAL_SKILL_CAST_TIME));
                 }
             }
 
@@ -520,7 +504,6 @@ impl SupportBehavior<'_> {
                 std::thread::sleep(Duration::from_millis(100));
             }
         } else {
-            //self.wait(Duration::from_millis(HEAL_SKILL_CAST_TIME));
         }
     }
 }
