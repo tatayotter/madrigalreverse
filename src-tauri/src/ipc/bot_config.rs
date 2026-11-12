@@ -217,6 +217,10 @@ pub struct FarmingConfig {
     duo_wait_for_healer: Option<bool>,
     duo_healer_min_hp: Option<u32>,
     duo_healer_min_mp: Option<u32>,
+    /// Duo: switch to the monsters attacking the healer (on by default)
+    duo_protect_healer: Option<bool>,
+    /// Duo: when the healer dies, drop the fight and get on the board (on by default)
+    duo_escape_on_healer_death: Option<bool>,
 
     /// Read monster names from the screen and look them up in the monster list
     name_reading: Option<bool>,
@@ -252,6 +256,12 @@ impl FarmingConfig {
     }
     pub fn duo_healer_min_mp(&self) -> u32 {
         self.duo_healer_min_mp.unwrap_or(20)
+    }
+    pub fn duo_protect_healer(&self) -> bool {
+        self.duo_protect_healer.unwrap_or(true)
+    }
+    pub fn duo_escape_on_healer_death(&self) -> bool {
+        self.duo_escape_on_healer_death.unwrap_or(true)
     }
     pub fn name_reading(&self) -> bool {
         self.name_reading.unwrap_or(false)

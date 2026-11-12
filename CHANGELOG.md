@@ -16,6 +16,8 @@ Date format: `DD/MM/YYYY`
     - Copy logs / Log folder buttons, log file with crash backtraces
 - Duo (farmer + healer on one PC)
     - Support mode "Duo link" shares the healer's HP/MP, distance to the farmer and nearby giants/violets
+    - Protect healer (default on): when the healer is hit, the farmer drops passive targets and attacks aggressive monsters
+    - When the healer dies, the farmer drops the fight and gets on the board (Board slot), where monsters can't attack it, then waits for the healer
     - Farming "Duo with healer": between fights, waits while the healer is dead, low on HP/MP or too far; flees when the healer sees danger
 - Farming
     - Anti-killsteal is back: monsters that are already hurt when targeted are skipped, unless something is hitting you

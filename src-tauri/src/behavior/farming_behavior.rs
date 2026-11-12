@@ -73,6 +73,12 @@ pub struct FarmingBehavior<'a> {
     last_healer_read: Option<Instant>,
     last_healer_danger_handled: u64,
     last_duo_log: Option<Instant>,
+    /// Healer was seen alive (so a death is a change worth reacting to)
+    healer_was_alive: bool,
+    /// We got on the board because the healer died, and are waiting for it to come back
+    escaped_from_healer_death: bool,
+    /// The healer is being hit: only go for aggressive monsters
+    protecting_healer: bool,
 }
 
 impl<'a> Behavior<'a> for FarmingBehavior<'a> {
@@ -112,6 +118,9 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             last_healer_read: None,
             last_healer_danger_handled: 0,
             last_duo_log: None,
+            healer_was_alive: false,
+            escaped_from_healer_death: false,
+            protecting_healer: false,
         }
     }
 
@@ -136,6 +145,14 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         self.track_hp(image);
         self.read_healer_status(config);
         self.check_restorations(config, image);
+
+        // Duo: healer died -> drop the fight and get on the board, then wait for it
+        if self.check_healer_death_escape(config) {
+            frontend_info.set_is_attacking(false);
+            return;
+        }
+        // Duo: healer is being hit -> go for the aggressive monsters
+        self.update_protect_healer(config);
 
         // Giant / violet flee takes priority over everything else
         if self.check_flee(config, image) {
@@ -191,6 +208,92 @@ impl FarmingBehavior<'_> {
             self.last_hp_drop_time = Some(Instant::now());
         }
         self.last_hp_seen = hp;
+    }
+
+    fn check_healer_death_escape(&mut self, config: &FarmingConfig) -> bool {
+        if !config.duo_wait_for_healer() || !config.duo_escape_on_healer_death() {
+            return false;
+        }
+        let now = duo::now_ms();
+        let status = self.healer_status.as_ref();
+        let dead = duo::healer_is_dead(status, now);
+
+        if self.escaped_from_healer_death {
+            if dead {
+                return true; // keep waiting on the board
+            }
+            if status.map_or(false, |s| s.alive && now.saturating_sub(s.updated_ms) <= duo::STALE_AFTER_MS) {
+                slog::info!(self.logger, "Healer is back, getting off the board and resuming");
+                self.escaped_from_healer_death = false;
+                self.healer_was_alive = true;
+                // Using the board again gets off it
+                if let Some((bar, slot)) = config.slot_index(SlotType::Flying) {
+                    send_slot_eval(self.window, bar, slot);
+                    std::thread::sleep(Duration::from_millis(3000));
+                }
+                return false;
+            }
+            return true;
+        }
+
+        if !dead {
+            if status.map_or(false, |s| s.alive) {
+                self.healer_was_alive = true;
+            }
+            return false;
+        }
+        if !self.healer_was_alive {
+            // Healer was already dead when we started: just wait, no escape needed
+            return false;
+        }
+
+        slog::warn!(self.logger, "Healer died, dropping the fight and getting on the board");
+        self.healer_was_alive = false;
+        self.escaped_from_healer_death = true;
+        self.is_attacking = false;
+        self.concurrent_mobs_under_attack = 0;
+        self.state = State::SearchingForEnemy;
+
+        // Monsters don't attack you while you're on the board, so mounting is enough.
+        use crate::movement::prelude::*;
+        play!(self.movement => [
+            PressKey("Escape"),
+        ]);
+        match config.slot_index(SlotType::Flying) {
+            Some((bar, slot)) => {
+                send_slot_eval(self.window, bar, slot);
+                // Mounting the board takes a few seconds
+                std::thread::sleep(Duration::from_millis(3500));
+            }
+            None => {
+                slog::warn!(self.logger, "No Board slot set, can't get on the board; just stopping");
+            }
+        }
+        true
+    }
+
+    fn update_protect_healer(&mut self, config: &FarmingConfig) {
+        let protect = config.duo_wait_for_healer() &&
+            config.duo_protect_healer() &&
+            duo::healer_needs_protection(self.healer_status.as_ref(), duo::now_ms());
+        if protect && !self.protecting_healer {
+            slog::info!(self.logger, "Healer is being hit, switching to aggressive monsters");
+        }
+        self.protecting_healer = protect;
+
+        // Drop a passive target to go help
+        if protect {
+            if let State::Attacking(mob) = self.state {
+                if mob.target_type == TargetType::Mob(MobType::Passive) {
+                    use crate::movement::prelude::*;
+                    play!(self.movement => [
+                        PressKey("Escape"),
+                    ]);
+                    self.is_attacking = false;
+                    self.state = State::SearchingForEnemy;
+                }
+            }
+        }
     }
 
     fn read_healer_status(&mut self, config: &FarmingConfig) {
@@ -597,7 +700,19 @@ impl FarmingBehavior<'_> {
                 true => 325,
                 false => 1000,
             };
-            let mob_list = self.prioritize_aggro(config, image, mobs);
+            let mut mob_list = self.prioritize_aggro(config, image, mobs.clone());
+
+            // Protecting the healer: aggressive monsters only, if there are any
+            if self.protecting_healer {
+                let aggressive: Vec<Target> = mobs
+                    .iter()
+                    .filter(|m| m.target_type == TargetType::Mob(MobType::Aggressive))
+                    .cloned()
+                    .collect();
+                if !aggressive.is_empty() {
+                    mob_list = aggressive;
+                }
+            }
 
             // inverted conditionals to make it easier to read
             // Check again if we have a list of mobs

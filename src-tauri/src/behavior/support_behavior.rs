@@ -23,6 +23,8 @@ const DUO_PUBLISH_INTERVAL_MS: u128 = 250;
 const DUO_DANGER_SCAN_INTERVAL_MS: u128 = 1000;
 /// Duo: how close (screen pixels) a violet/giant must be for the healer to warn.
 const DUO_DANGER_RADIUS: i32 = 300;
+/// Duo: the healer counts as "being hit" if its HP dropped within this window.
+const DUO_UNDER_ATTACK_WINDOW_MS: u128 = 2000;
 pub struct SupportBehavior<'a> {
     logger: &'a Logger,
     movement: &'a MovementAccessor,
@@ -45,6 +47,8 @@ pub struct SupportBehavior<'a> {
     buff_counter: u32,
 
     leader_in_range: bool,
+    last_hp_seen: u32,
+    last_hp_drop: Option<Instant>,
     last_duo_publish: Option<Instant>,
     last_danger_scan: Option<Instant>,
     danger_ms: u64,
@@ -70,6 +74,8 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
             target_buffing: false,
             buff_counter: 0,
             leader_in_range: false,
+            last_hp_seen: 0,
+            last_hp_drop: None,
             last_duo_publish: None,
             last_danger_scan: None,
             danger_ms: 0,
@@ -170,6 +176,11 @@ impl SupportBehavior<'_> {
         if !config.duo_link() {
             return;
         }
+        let hp = image.client_stats.hp.value;
+        if hp < self.last_hp_seen {
+            self.last_hp_drop = Some(Instant::now());
+        }
+        self.last_hp_seen = hp;
         if self.last_danger_scan.map_or(true, |t| t.elapsed().as_millis() >= DUO_DANGER_SCAN_INTERVAL_MS) {
             self.last_danger_scan = Some(Instant::now());
             // Default name colors; the healer has no mob color settings of its own.
@@ -188,6 +199,9 @@ impl SupportBehavior<'_> {
                 has_leader: self.has_target,
                 leader_in_range: self.leader_in_range,
                 danger_ms: self.danger_ms,
+                under_attack: self
+                    .last_hp_drop
+                    .map_or(false, |t| t.elapsed().as_millis() < DUO_UNDER_ATTACK_WINDOW_MS),
             });
         }
     }

@@ -47,6 +47,9 @@ pub struct HealerStatus {
     pub leader_in_range: bool,
     /// Last time the healer saw a violet/giant nearby (unix ms, 0 = never)
     pub danger_ms: u64,
+    /// The healer's HP dropped in the last couple of seconds (something is hitting it)
+    #[serde(default)]
+    pub under_attack: bool,
 }
 
 /// Write the healer's status for the farmer to read.
@@ -98,6 +101,20 @@ pub fn farmer_wait_reason(
     None
 }
 
+fn is_fresh(status: &HealerStatus, now_ms: u64) -> bool {
+    now_ms.saturating_sub(status.updated_ms) <= STALE_AFTER_MS
+}
+
+/// The healer is running and reports that it's dead.
+pub fn healer_is_dead(status: Option<&HealerStatus>, now_ms: u64) -> bool {
+    status.map_or(false, |s| is_fresh(s, now_ms) && !s.alive)
+}
+
+/// The healer is running, alive and something is hitting it.
+pub fn healer_needs_protection(status: Option<&HealerStatus>, now_ms: u64) -> bool {
+    status.map_or(false, |s| is_fresh(s, now_ms) && s.alive && s.under_attack)
+}
+
 /// Whether the healer reported a giant/violet within the last couple of seconds.
 pub fn healer_sees_danger(status: Option<&HealerStatus>, now_ms: u64) -> bool {
     status.map_or(false, |s| {
@@ -118,7 +135,33 @@ mod tests {
             has_leader: true,
             leader_in_range: true,
             danger_ms: 0,
+            under_attack: false,
         }
+    }
+
+    #[test]
+    fn healer_dead_only_when_fresh() {
+        let dead = HealerStatus { alive: false, ..ok(1000) };
+        assert!(healer_is_dead(Some(&dead), 1000));
+        assert!(!healer_is_dead(Some(&dead), 1000 + STALE_AFTER_MS + 1));
+        assert!(!healer_is_dead(Some(&ok(1000)), 1000));
+        assert!(!healer_is_dead(None, 1000));
+    }
+
+    #[test]
+    fn protection_needed_when_alive_healer_is_hit() {
+        let hit = HealerStatus { under_attack: true, ..ok(1000) };
+        assert!(healer_needs_protection(Some(&hit), 1000));
+        assert!(!healer_needs_protection(Some(&ok(1000)), 1000));
+        assert!(!healer_needs_protection(Some(&HealerStatus { alive: false, ..hit.clone() }), 1000));
+        assert!(!healer_needs_protection(Some(&hit), 1000 + STALE_AFTER_MS + 1));
+    }
+
+    #[test]
+    fn old_status_files_without_under_attack_still_load() {
+        let json = r#"{"updated_ms":1,"alive":true,"hp":1,"mp":1,"has_leader":true,"leader_in_range":true,"danger_ms":0}"#;
+        let s: HealerStatus = serde_json::from_str(json).unwrap();
+        assert!(!s.under_attack);
     }
 
     #[test]
