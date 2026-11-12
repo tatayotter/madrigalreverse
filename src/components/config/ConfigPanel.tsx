@@ -15,13 +15,12 @@ const ConfigPanel = ({ className, children }: Props) => {
 export default styled(ConfigPanel)`
     display: flex;
     flex-direction: column;
-    gap: .5rem;
-    background: hsla(0,0%,0%,.75);
-    backdrop-filter: blur(.5rem);
-    padding: 1rem;
-    border-radius: .25rem;
-    color: white;
-    overflow: auto;
+    gap: 8px;
     width: 100%;
-    max-width: calc(min(500px, 90vw));
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    color: var(--text);
+    overflow: auto;
 `

@@ -1,11 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { BsDiscord, BsGithub } from 'react-icons/bs'
 
 import SocialButton from './SocialButton'
-import useModal from './utils/UseModal'
-import YesNoModal from './YesNoModal'
-import { getVersion } from '@tauri-apps/api/app'
 
 type Props = {
     className?: string,
@@ -14,48 +10,48 @@ type Props = {
 }
 
 const Footer = ({ className, lastVersion: newVersion = "NaN", currentVersion = "NaN" }: Props) => {
-
+    const hasUpdate = newVersion !== "NaN" && currentVersion !== "NaN" && newVersion !== currentVersion
     return (
-        <>
-            <footer className={className}>
-                <SocialButton icon={BsDiscord} label="Join our Discord" href="https://discord.gg/cZr3X3mCnq" />
-                {currentVersion !== "NaN" && (<p id="versionNumber">V{currentVersion}
-                    {(newVersion !== "NaN" && newVersion !== currentVersion) && (<a target="_blank" href={"https://github.com/MadrigalStreetCartel/neuz/releases/tag/Neuz-v" + newVersion} className="badge">NEW UPDATE</a>)}</p>)
-                }
-                <SocialButton icon={BsGithub} label="Star us on GitHub" href="https://github.com/MadrigalStreetCartel/neuz" />
-            </footer>
-        </>
+        <footer className={className}>
+            {currentVersion !== "NaN" && <span className="version">v{currentVersion}</span>}
+            {hasUpdate && (
+                <a className="update" target="_blank" rel="noreferrer"
+                    href={"https://github.com/MadrigalStreetCartel/neuz/releases/tag/Neuz-v" + newVersion}>
+                    Update {newVersion}
+                </a>
+            )}
+            <div className="links">
+                <SocialButton icon={BsDiscord} label="Discord" href="https://discord.gg/cZr3X3mCnq" />
+                <SocialButton icon={BsGithub} label="GitHub" href="https://github.com/MadrigalStreetCartel/neuz" />
+            </div>
+        </footer>
     )
 }
 
 export default styled(Footer)`
-    width: 100%;
     display: flex;
-    justify-content: center;
     align-items: center;
-    border-top: 2px solid hsla(0,0%,0%,.1);
-    background: hsla(0,0%,0%,.25);
-    backdrop-filter: blur(.25rem);
-    margin-top: 1rem;
-    gap: 1rem;
-    padding: .25rem;
+    gap: 8px;
+    height: 32px;
+    margin: 0 -12px;
+    padding: 0 12px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    font-size: 11px;
+    color: var(--text-faint);
 
-    & #versionNumber {
-        color: white;
+    & .update {
+        padding: 1px 6px;
+        border-radius: 999px;
+        background: var(--warning-soft);
+        color: var(--warning);
+        text-decoration: none;
+        font-weight: 600;
     }
 
-    & .badge {
-        text-decoration:none;
-        background-color:#000;
-        color: yellow;
-        display:inline-block;
-        padding-left:8px;
-        padding-right:8px;
-        text-align:center;
-        border-radius:50%;
-        margin-top:-15px;
-        font-size: 12px;
-        margin-left:-70px;
-        position: fixed;
+    & .links {
+        display: flex;
+        gap: 2px;
+        margin-left: auto;
     }
 `

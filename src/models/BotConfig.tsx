@@ -1,11 +1,17 @@
-import IconMotionPickup from '../assets/icon_motion_pickup.png'
-import IconVitalDrink from '../assets/icon_vitaldrink.png'
-import IconRefresher from '../assets/icon_refresher.png'
-import IconHealSkill from '../assets/heal_spell.png'
-import IconAOEHealSkill from '../assets/icon_heal_rain.png'
-import IconAOEAttackSkill from '../assets/aoe_attack_skill.png'
-import IconRezSkill from '../assets/rez_spell.png'
-import IconPartySkill from '../assets/party_skill_icon.png'
+import IconFood from '../assets/slots/slot_food.png'
+import IconPill from '../assets/slots/slot_pill.png'
+import IconHeal from '../assets/slots/slot_heal.png'
+import IconAoeHeal from '../assets/slots/slot_aoe_heal.png'
+import IconMp from '../assets/slots/slot_mp.png'
+import IconFp from '../assets/slots/slot_fp.png'
+import IconPet from '../assets/slots/slot_pet.png'
+import IconPickup from '../assets/slots/slot_pickup.png'
+import IconAttack from '../assets/slots/slot_attack.png'
+import IconAoeAttack from '../assets/slots/slot_aoe_attack.png'
+import IconBuff from '../assets/slots/slot_buff.png'
+import IconRez from '../assets/slots/slot_rez.png'
+import IconBoard from '../assets/slots/slot_board.png'
+import IconParty from '../assets/slots/slot_party.png'
 
 export type FixedArray<TItem, TLength extends number> = [TItem, ...TItem[]] & { length: TLength }
 export const slotTypes = ["Unused", "Food", "Pill", "HealSkill","AOEHealSkill", "MpRestorer",
@@ -30,20 +36,20 @@ export const SLOT_SIZE_PX = 40;
 export const translateType = (type: SlotType) => {
     switch (type) {
         case 'Unused': return ''
-        case 'Food': return '🍔'
-        case 'Pill': return '💊'
-        case 'HealSkill': return IconHealSkill
-        case 'AOEHealSkill': return IconAOEHealSkill
-        case 'MpRestorer': return IconRefresher
-        case 'FpRestorer': return IconVitalDrink
-        case 'PickupPet': return '🐶'
-        case 'PickupMotion': return IconMotionPickup
-        case 'AttackSkill': return '🗡️'
-        case 'AOEAttackSkill': return IconAOEAttackSkill
-        case 'BuffSkill': return '🪄'
-        case 'RezSkill': return IconRezSkill
-        case 'Flying': return '✈️'
-        case 'PartySkill': return IconPartySkill
+        case 'Food': return IconFood
+        case 'Pill': return IconPill
+        case 'HealSkill': return IconHeal
+        case 'AOEHealSkill': return IconAoeHeal
+        case 'MpRestorer': return IconMp
+        case 'FpRestorer': return IconFp
+        case 'PickupPet': return IconPet
+        case 'PickupMotion': return IconPickup
+        case 'AttackSkill': return IconAttack
+        case 'AOEAttackSkill': return IconAoeAttack
+        case 'BuffSkill': return IconBuff
+        case 'RezSkill': return IconRez
+        case 'Flying': return IconBoard
+        case 'PartySkill': return IconParty
     }
 }
 
@@ -53,17 +59,17 @@ export const translateDesc = (type: SlotType, defaultUnused: string = '') => {
         case 'Food': return ['Food','Food']
         case 'Pill': return ['Pill','Pill']
         case 'HealSkill': return ["Heal",'Heal skill']
-        case 'AOEHealSkill': return ["AOEHeal",'AOE Heal skill']
+        case 'AOEHealSkill': return ['AOE H','AOE Heal skill']
         case 'MpRestorer': return ['MP', 'MP restorer']
         case 'FpRestorer': return ['FP', 'FP restorer']
         case 'PickupPet': return ['Pet', 'Pickup pet']
         case 'PickupMotion': return ['Pickup', 'Pickup motion']
         case 'AttackSkill': return ['Attack', 'Attack skill']
-        case 'AOEAttackSkill': return ['AOE Attack', 'AOE Attack skill']
+        case 'AOEAttackSkill': return ['AOE', 'AOE Attack skill']
         case 'BuffSkill': return ['Buff', 'Buff skill']
-        case 'RezSkill': return ['Rez', 'Resurection skill']
+        case 'RezSkill': return ['Rez', 'Resurrection skill']
         case 'Flying': return ['Board', 'Board']
-        case 'PartySkill': return ['PartySkill', 'PartySkill']
+        case 'PartySkill': return ['Party', 'Party skill']
     }
 }
 export type SlotModel = {

@@ -1,5 +1,6 @@
 import React, { ReactElement } from 'react'
 import styled from 'styled-components'
+import { LuX } from 'react-icons/lu'
 
 
 type Props = {
@@ -36,7 +37,7 @@ const SlotModal = ({className, isShowing, hide, body, title,closeBtn = true, onH
                                     className="modal-close-button"
                                     onClick={onHiding}
                                 >
-                                    <span style={{color:"white"}}>&times;</span>
+                                    <LuX size={16} />
                                 </button>
                             }
                         </div>
@@ -59,89 +60,90 @@ const SlotModal = ({className, isShowing, hide, body, title,closeBtn = true, onH
 
 export default styled(SlotModal)`
 position: absolute;
+
 & .modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
+    inset: 0;
     z-index: 1040;
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(5, 6, 8, .6);
+    backdrop-filter: blur(2px);
 }
-&.select-slot {
-    color: inherit;
-    color: black !important;
-    display: inline-block;
-    fontSize: 12;
-    fontStyle: italic;
-    marginTop: 1em;
-}
+
 & .modal-wrapper {
     position: fixed;
-    top: 0;
-    left: 0;
+    inset: 0;
     z-index: 1050;
-    width: 100%;
-    height: 100%;
     overflow-x: hidden;
     overflow-y: auto;
     outline: 0;
     display: flex;
     align-items: center;
+    padding: 16px;
 }
 
 & .modal {
-    z-index: 100;
-    background: #fff;
     position: relative;
+    z-index: 100;
     margin: auto;
-    border-radius: 5px;
-    max-width: 500px;
-    height:auto;
-    width: 80%;
-    padding: 1rem;
-    background: hsla(0,0%,0%,.75);
-    backdrop-filter: blur(.9rem);
-    color: white;
+    width: 100%;
+    max-width: 460px;
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .5);
+    color: var(--text);
+    overflow: hidden;
 }
 
 & .modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 12px;
+    padding: 10px 10px 10px 16px;
+    border-bottom: 1px solid var(--border);
+
+    & h1, & h2, & h3, & h4 {
+        font-size: 14px;
+        font-weight: 600;
+    }
 }
 
 & .modal-close-button {
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #000;
-    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
     border: none;
+    border-radius: var(--radius);
     background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+
+    &:hover {
+        background: var(--surface-2);
+        color: var(--text);
+    }
 }
 
-&.modal-body {
-    display: flex;
-    flex-wrap: wrap;
-    width: 100%;
-    border: none;
+& .modal-body {
+    padding: 12px 16px 16px;
+    overflow-y: auto;
 }
-
 
 & .slot {
     text-align: center;
-    background-color: hsla(0,0%,100%,.05);
+    background-color: var(--surface-2);
 }
 
 & .desc {
     width: 100%;
     text-align: center;
-    font-size: 1rem;
-    }
-
-& div.type {
-    color: white;
-    font-size: 1.5rem;
 }
 
 & img.type {
@@ -151,7 +153,4 @@ position: absolute;
     padding: .25rem;
     border-radius: .25rem;
 }
-
 `
-
-

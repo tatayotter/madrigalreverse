@@ -1,4 +1,3 @@
-import React from 'react'
 import { IconType } from 'react-icons/lib'
 import styled from 'styled-components'
 
@@ -9,48 +8,25 @@ type Props = {
     href: string,
 }
 
-const SocialButton = ({ className, icon, label, href }: Props) => {
-    const Icon = icon
-
-    return (
-        <a className={className} href={href} target="_blank" rel="noreferrer">
-            <div className="icon">
-                <Icon size={16} />
-            </div>
-            <div className="label">{label}</div>
-        </a>
-    )
-}
+/** Small icon link; the label shows as a tooltip. */
+const SocialButton = ({ className, icon: Icon, label, href }: Props) => (
+    <a className={className} href={href} target="_blank" rel="noreferrer" title={label} aria-label={label}>
+        <Icon size={13} />
+    </a>
+)
 
 export default styled(SocialButton)`
-    display: flex;
-    justify-content: center;
+    display: inline-flex;
     align-items: center;
-    text-align: center;
-    text-decoration: none;
-    font-size: .9rem;
-    user-select: none;
-    padding: .25rem .5rem;
-    border-radius: 0.25rem;
-    color: white;
-    background: hsla(203, 100%, 0%, .5);
-    backdrop-filter: blur(.5rem);
-    transition: all .1s linear;
-    /* box-shadow: 0 .1rem .1rem 0 hsla(0,0%,0%,1); */
-    border: 1px solid hsla(0,0%,0%,.25);
-    cursor: pointer;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius);
+    color: var(--text-faint);
+    transition: background-color .12s ease, color .12s ease;
 
     &:hover {
-        background: hsla(203, 100%, 33%, .75);
-        border: 1px solid hsla(0,0%,0%,.5);
-    }
-
-    & .icon {
-        display: flex;
-        align-items: center;
-    }
-
-    & .label {
-        margin-left: .5rem;
+        background: var(--surface-2);
+        color: var(--text);
     }
 `

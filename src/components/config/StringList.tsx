@@ -17,7 +17,7 @@ const StringList = ({ className, messages, onChange }: Props) => {
     return (
         <div className={className}>
             <textarea value={messageBuffer?.join("\n") ?? ""} onChange={e => setMessageBuffer(getValue(e))} />
-            <div className="btn" onClick={() => onChange?.(messageBuffer)}>Apply</div>
+            <button className="btn sm primary" onClick={() => onChange?.(messageBuffer)}>Apply</button>
         </div>
     )
 }
@@ -25,24 +25,27 @@ const StringList = ({ className, messages, onChange }: Props) => {
 export default styled(StringList)`
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    background: hsla(0,0%,0%,.75);
+    gap: 8px;
     width: 100%;
-    flex-grow: 1;
-    border-radius: .25rem;
-    position: relative;
-    border: 2px solid hsla(0,0%,0%,.75);
-    padding: .1rem .25rem;
 
     & textarea {
-        all: unset;
-        margin-bottom: .5rem;
+        width: 100%;
+        min-height: 96px;
+        padding: 8px 10px;
+        resize: vertical;
+        border-radius: var(--radius);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        outline: none;
+        user-select: text;
+
+        &:focus {
+            border-color: var(--accent);
+        }
     }
 
     & .btn {
-        width: 100% !important;
-        font-size: 1rem !important;
-        height: 2rem !important;
-        padding: .25rem 1rem !important;
+        align-self: flex-end;
     }
 `

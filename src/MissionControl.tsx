@@ -6,9 +6,6 @@ import { isNil } from 'lodash'
 import TabControl from "./components/TabControl"
 import Tab from "./components/Tab"
 
-import ImageFarm from './assets/btn_leveling.png'
-import ImageSupport from './assets/btn_full_support.png'
-import ImageShout from './assets/btn_shout.png'
 
 import { BotConfigModel, ModeModel } from './models/BotConfig'
 import FarmingConfig from "./components/behaviors/FarmingConfig"
@@ -19,16 +16,18 @@ import { FrontendInfoModel } from "./models/FrontendInfo"
 import { invoke } from "@tauri-apps/api"
 import { writeText } from "@tauri-apps/api/clipboard"
 import { useStopWatch } from "./components/utils/StopWatch"
+import { LuAppWindow, LuCheck, LuCopy, LuCrosshair, LuFolderOpen, LuHeartPulse, LuMaximize2, LuMegaphone, LuMinimize2, LuPlay, LuSquare } from "react-icons/lu"
 
 //type Bounds = {x: number, y: number, w: number, h: number}
 
 type Props = {
     className?: string,
+    profileId?: string,
     currentVersion?: string,
     lastVersion?: string,
 }
 
-const MissionControl = ({ className, lastVersion, currentVersion }: Props) => {
+const MissionControl = ({ className, profileId = "", lastVersion, currentVersion }: Props) => {
     const [logsCopied, setLogsCopied] = useState(false)
     const copyLogs = () => {
         invoke<string>("get_logs", { lines: 300 })
@@ -97,15 +96,30 @@ const MissionControl = ({ className, lastVersion, currentVersion }: Props) => {
 
     const supportState = config?.is_running? info?.is_running? !info?.is_alive? "dead" : "healing" : "ready" : "idle"
     const suppStopWatch = useStopWatch(supportState === "healing")
+    const activeState = config?.mode === "Farming" ? farmingState : config?.mode === "Support" ? supportState : null
+    const engageBtn = (extra: string = "") => (
+        <button className={`btn ${config?.is_running ? "danger" : "success"} ${extra}`} onClick={setRunningToggle}>
+            {config?.is_running ? <><LuSquare size={13} />Stop</> : <><LuPlay size={14} />Start</>}
+        </button>
+    )
+
     return (
         <div className={className}>
-            {!lightMode && <div className={`vstack`}>
+            {!lightMode && <div className="vstack">
+                <header className="topbar">
+                    <div className="topbar__profile">
+                        <span className="topbar__label">Profile</span>
+                        <span className="topbar__name">{profileId}</span>
+                    </div>
+                    {activeState && <span className={`badge badge--${activeState}`}>{activeState}</span>}
+                </header>
+
                 {config && (
                     <>
                         <TabControl activeMode={config.mode} onSelect={handleTabSelect}>
-                            <Tab mode="Farming" image={ImageFarm} />
-                            <Tab mode="Support" image={ImageSupport} />
-                            <Tab mode="AutoShout" image={ImageShout} />
+                            <Tab mode="Farming" label="Farming" icon={LuCrosshair} />
+                            <Tab mode="Support" label="Support" icon={LuHeartPulse} />
+                            <Tab mode="AutoShout" label="Shout" icon={LuMegaphone} />
                         </TabControl>
                         <div className="config-container">
                             {config?.mode === 'Farming' && (<FarmingConfig botState={farmingState} botStopWatch={farmStopWatch.watch} info={info} config={config.farming_config} onChange={makeConfigUpdater('farming_config')} />)}
@@ -115,44 +129,38 @@ const MissionControl = ({ className, lastVersion, currentVersion }: Props) => {
                     </>
                 )}
 
-
                 <div className="footer">
-                    <div className="sm footerCombinedBtn">
-                        {!isNil(config?.mode) && <div className="btn sm" onClick={toogleLightMode}>Compact</div>}
-                        {!isNil(config?.mode) && <div className="btn sm" onClick={() => {invoke("focus_client")}}>Focus</div>}
-                        <div className="btn sm" title="Copy the latest log lines to paste into a bug report" onClick={copyLogs}>{logsCopied ? 'Copied!' : 'Copy logs'}</div>
-                        <div className="btn sm" title="Open the folder with the log files" onClick={() => {invoke("open_log_folder")}}>Log folder</div>
+                    <div className="toolbar">
+                        {!isNil(config?.mode) && <button className="btn sm ghost" title="Shrink this window to a small control strip" onClick={toogleLightMode}><LuMinimize2 size={13} />Compact</button>}
+                        {!isNil(config?.mode) && <button className="btn sm ghost" title="Bring the game window to the front" onClick={() => {invoke("focus_client")}}><LuAppWindow size={13} />Focus</button>}
+                        <button className="btn sm ghost" title="Copy the latest log lines to paste into a bug report" onClick={copyLogs}>{logsCopied ? <><LuCheck size={13} />Copied</> : <><LuCopy size={13} />Copy logs</>}</button>
+                        <button className="btn sm ghost" title="Open the folder with the log files" onClick={() => {invoke("open_log_folder")}}><LuFolderOpen size={13} />Logs</button>
                     </div>
-                    {!isNil(config?.mode) && <div className="btn" onClick={setRunningToggle}>{config?.is_running ? 'Disengage' : 'Engage'}</div>}
+                    {!isNil(config?.mode) && engageBtn("lg block")}
                 </div>
                 <Footer currentVersion={currentVersion} lastVersion={lastVersion} />
             </div>}
 
             {lightMode &&
                 <div className="lightmode">
-                       {config?.mode !== "AutoShout" && <div className={"stateDisplay"}>
-                            State: {config?.mode === "Farming"? farmingState : supportState}
-                        </div>}
-                    <div className="btn sm" id="back" onClick={toogleLightMode}>{"<-"}</div>
-                    <div className="btn sm" onClick={() => {invoke("focus_client")}}>Focus</div>
-                    {config?.mode === "Farming" && <div className="btn sm" onClick={handleToggle}>
-                    {config?.farming_config.is_stop_fighting? "🛑" : "✅" }🎯
-                    </div>}
-                    <div className="btn sm" onClick={setRunningToggle}>{config?.is_running ? 'Disengage' : 'Engage'}</div>
+                    <div className="lightmode__head">
+                        <button className="btn sm ghost icon" title="Back to the full window" onClick={toogleLightMode}><LuMaximize2 size={13} /></button>
+                        <span className="lightmode__name">{profileId}</span>
+                        {activeState && <span className={`badge badge--${activeState}`}>{activeState}</span>}
+                    </div>
+                    <div className="lightmode__row">
+                        <button className="btn sm" onClick={() => {invoke("focus_client")}}><LuAppWindow size={13} />Focus</button>
+                        {config?.mode === "Farming" && (
+                            <button className={`btn sm ${config?.farming_config.is_stop_fighting ? "" : "on"}`}
+                                title="Turn target detection on or off"
+                                onClick={handleToggle}>
+                                <LuCrosshair size={13} />{config?.farming_config.is_stop_fighting ? "Targets off" : "Targets on"}
+                            </button>
+                        )}
+                    </div>
+                    {engageBtn("block")}
                 </div>
             }
-            {/* <div className="container" style={{ width: `${imageData.width}px`, height: `${imageData.height}px` }}>
-                <img className="view" alt="" src={imageData.data} style={{ width: `${imageData.width}px`, height: `${imageData.height}px` }} />
-                {enemyTags.map(({ x, y }) => (
-                    <div className="enemy-tag" style={{ left: `${x}px`, top: `${y}px` }} />
-                ))}
-                {enemyBounds.map(({ x, y, w, h }) => (
-                    <div className="enemy-rect" style={{ left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` }} />
-                ))}
-                {attackTargets.map(({ x, y }) => (
-                    <div className="enemy-target" style={{ left: `${x}px`, top: `${y}px` }} />
-                ))}
-            </div> */}
         </div>
     )
 }
@@ -162,169 +170,182 @@ export default styled(MissionControl)`
     height: 100%;
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    overflow: auto;
-    padding: 0.25rem 0;
-    padding-bottom: 0;
-
-    & .stateDisplay {
-        background: hsla(203, 100%, 0%, .75);
-        backdrop-filter: blur(.5rem);
-        margin-bottom: 5px;
-        padding: 5px;
-        width: 70%;
-        color: white;
-    }
+    overflow: hidden;
+    background: var(--bg);
 
     & .vstack {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 0.5rem;
+        gap: 10px;
         height: 100%;
+        padding: 10px 12px 0;
     }
-    & .lightmode {
-        justify-content: center;
+
+    & .topbar {
+        display: flex;
         align-items: center;
-        text-align: -webkit-center;
-        margin-bottom: 10px;
-
-        & #back {
-            position: fixed;
-            top: 5px;
-            left: 5px;
-            width: 40px;
-            font-size: 15px;
-        }
+        justify-content: space-between;
+        gap: 8px;
+        min-height: 24px;
     }
 
-    & .info {
-        margin: 0 auto;
-        margin-top: 5px;
+    & .topbar__profile {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    & .topbar__label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--text-faint);
+    }
+
+    & .topbar__name {
+        font-size: 14px;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    & .config-container {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
         display: flex;
         flex-direction: column;
-        padding: .5rem 1rem;
-        gap: .5rem;
-        color: white;
-        background: hsla(203, 100%, 0%, .75);
-        backdrop-filter: blur(.5rem);
-        border-radius: 0.25rem;
-        box-shadow: 0 .1rem .1rem 0 hsla(0,0%,0%,1);
-        border: 1px solid hsl(0,0%,10%);
-        z-index: 0;
-        width: calc(min(500px, max(250px, 50vw)));
+        align-items: stretch;
+        gap: 10px;
+    }
 
-
-        &--slotbar {
-            width: auto;
-        }
+    /* Status card under the slot bar (Farming / Support) */
+    & .info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 4px 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
 
         & .row {
             display: flex;
             align-items: center;
-            justify-content: space-around;
+            justify-content: space-between;
+            gap: 8px;
+            min-height: 36px;
+            border-bottom: 1px solid var(--border);
+
+            &:last-child {
+                border-bottom: none;
+            }
+        }
+
+        & .row__label {
+            color: var(--text-muted);
+        }
+
+        & .row__value {
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        & .row--actions {
+            justify-content: stretch;
+            padding: 6px 0;
+
+            & .btn {
+                flex: 1;
+            }
         }
     }
 
+    /* Stats modal */
     & .stats {
         display: flex;
         flex-direction: column;
-        gap: 0.75rem;
-        padding: 0.25rem 0;
+        gap: 12px;
 
         & .stats__state {
             display: flex;
-            justify-content: center;
-            margin-bottom: 0.25rem;
+            justify-content: flex-start;
         }
 
         & .stats__badge {
-            display: inline-block;
-            padding: 0.2rem 0.75rem;
-            border-radius: 1rem;
-            font-size: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            height: 20px;
+            padding: 0 8px;
+            border-radius: 999px;
+            font-size: 11px;
             font-weight: 600;
+            letter-spacing: .03em;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: white;
-            background: hsla(0, 0%, 50%, 0.4);
+            color: var(--text-muted);
+            background: var(--surface-3);
 
-            &--searching {
-                background: hsla(45, 100%, 45%, 0.5);
-                box-shadow: 0 0 8px hsla(45, 100%, 50%, 0.3);
+            &::before {
+                content: "";
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: currentColor;
             }
-            &--fighting {
-                background: hsla(0, 80%, 45%, 0.5);
-                box-shadow: 0 0 8px hsla(0, 80%, 50%, 0.3);
-            }
-            &--dead {
-                background: hsla(0, 0%, 30%, 0.6);
-            }
-            &--idle {
-                background: hsla(210, 30%, 40%, 0.4);
-            }
-            &--ready {
-                background: hsla(140, 60%, 35%, 0.5);
-                box-shadow: 0 0 8px hsla(140, 60%, 40%, 0.3);
-            }
+
+            &--searching { color: var(--warning); background: var(--warning-soft); }
+            &--fighting { color: var(--danger); background: var(--danger-soft); }
+            &--dead { color: var(--text-faint); background: var(--surface-2); }
+            &--ready { color: var(--accent); background: var(--accent-soft); }
         }
 
         & .stats__section {
             display: flex;
             flex-direction: column;
-            gap: 0.4rem;
+            gap: 6px;
         }
 
         & .stats__section-title {
-            font-size: 0.65rem;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: hsla(0, 0%, 100%, 0.4);
-            border-bottom: 1px solid hsla(0, 0%, 100%, 0.1);
-            padding-bottom: 0.2rem;
+            letter-spacing: .06em;
+            color: var(--text-faint);
         }
 
         & .stats__grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.4rem;
-        }
-
-        @media (max-width: 360px) {
-            & .stats__grid {
-                grid-template-columns: 1fr;
-            }
+            gap: 6px;
         }
 
         & .stats__card {
             display: flex;
             flex-direction: column;
-            gap: 0.15rem;
-            padding: 0.4rem 0.5rem;
-            background: hsla(0, 0%, 100%, 0.05);
-            border-radius: 0.3rem;
-            border: 1px solid hsla(0, 0%, 100%, 0.07);
+            gap: 2px;
+            padding: 8px 10px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
         }
 
         & .stats__label {
-            font-size: 0.6rem;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: hsla(0, 0%, 100%, 0.45);
+            font-size: 11px;
+            color: var(--text-muted);
         }
 
         & .stats__value {
-            font-size: 1.1rem;
-            font-weight: 700;
-            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
 
             &--time {
-                font-size: 0.85rem;
-                font-weight: 600;
-                font-family: monospace;
-                letter-spacing: 0.02em;
+                font-size: 13px;
+                font-family: var(--mono);
             }
         }
     }
@@ -332,15 +353,6 @@ export default styled(MissionControl)`
     & .container {
         overflow: hidden;
         position: relative;
-    }
-
-    & .config-container {
-        width: 100%;
-        max-width: 90vw;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.25rem;
     }
 
     & .view {
@@ -381,44 +393,65 @@ export default styled(MissionControl)`
     }
 
     & .footer {
-        width: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        margin-top: auto;
-
-        & .btn {
-            cursor: pointer;
-            user-select: none;
-            padding: .25rem .5rem;
-            width: calc(min(500px, max(250px, 40vw)));
-            text-align: center;
-            border-radius: 0.25rem;
-            color: white;
-            background: hsla(203, 100%, 0%, .75);
-            backdrop-filter: blur(.5rem);
-            transition: all .1s linear;
-            box-shadow: 0 .1rem .1rem 0 hsla(0,0%,0%,1);
-            border: 1px solid hsl(0,0%,10%);
-            font-size: 1.5rem;
-
-            &:hover {
-                background: hsla(203, 100%, 45%, .5);
-                border: 1px solid hsl(0,0%,10%);
-                box-shadow: 0 .1rem .1rem 0 hsla(0,0%,0%,1), 0 .5rem 2rem 0 hsla(0,0%,0%,.25), 0 2rem 2rem 0 hsla(0,0%,0%,.25);
-            }
-        }
-
-
+        gap: 8px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
     }
 
-    & .footerCombinedBtn {
-
+    & .toolbar {
         display: flex;
-        flex-direction: row;
+        gap: 4px;
+
         & .btn {
-            width: 50%;
+            flex: 1;
+            padding: 0 6px;
         }
+    }
+
+    /* Compact strip (window shrunk to about 250x200) */
+    & .lightmode {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 100%;
+        padding: 8px;
+    }
+
+    & .lightmode__head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+    }
+
+    & .lightmode__name {
+        flex: 1;
+        min-width: 0;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    & .lightmode__row {
+        display: flex;
+        gap: 6px;
+
+        & .btn {
+            flex: 1;
+            padding: 0 6px;
+        }
+
+        & .btn.on {
+            color: var(--success);
+            border-color: rgba(47, 191, 113, .4);
+        }
+    }
+
+    & .btn.icon {
+        width: 28px;
+        padding: 0;
     }
 `

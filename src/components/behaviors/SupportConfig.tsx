@@ -16,6 +16,7 @@ import styled from "styled-components"
 import { DefaultValuesChecker } from "../utils/DefaultValuesChecker"
 import NumericInput from "../config/NumericInput"
 import TimeInput from "../config/TimeInput"
+import { LuSettings } from "react-icons/lu"
 
 type Props = {
     className?: string,
@@ -46,7 +47,7 @@ const SupportConfig = ({ className, info, config, onChange, botStopWatch, botSta
         <div className={className}>
             <SlotBar botMode="support" config={config} onChange={onChange} />
             <YesNoModal isShowing={resetSlotYesNo.isShown} hide={resetSlotYesNo.close}
-                title={<h4>Confirm slot reset this action is irreversible</h4>}
+                title={<h4>Reset every slot on all bars?</h4>}
                 onYes={() => {
                     const newConfig = { ...config, slot_bars: createSlotBars() }
                     onChange(newConfig)
@@ -55,11 +56,11 @@ const SupportConfig = ({ className, info, config, onChange, botStopWatch, botSta
                 <ConfigTable>
                     <ConfigTableRow
                         label={<ConfigLabel name="On death event" helpText="" />}
-                        item={<button onClick={onDeathModal.open}>⚙️</button>}
+                        item={<button onClick={onDeathModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="On AFK event" helpText="" />}
-                        item={<button onClick={onAFKModal.open}>⚙️</button>}
+                        item={<button onClick={onAFKModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Obstacle avoidance cooldown" helpText="Time before it tries to avoid obstacles, and start movement pattern" />}
@@ -85,7 +86,7 @@ const SupportConfig = ({ className, info, config, onChange, botStopWatch, botSta
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Reset all slots" helpText="" />}
-                        item={<button onClick={() => resetSlotYesNo.open()}>⚙️</button>}
+                        item={<button onClick={() => resetSlotYesNo.open()}>Edit</button>}
                     />
                 </ConfigTable>
             } />
@@ -120,15 +121,12 @@ const SupportConfig = ({ className, info, config, onChange, botStopWatch, botSta
             {info && (
                 <div className="info">
                     <div className="row">
-                        <div>State: {botState}</div>
+                        <span className="row__label">Botting time</span>
+                        <span className="row__value">{botStopWatch?.toString() ?? "00:00:00:000"}</span>
                     </div>
-                    <div className="row">
-                        <div>Botting time: {botStopWatch?.toString()}</div>
+                    <div className="row row--actions">
+                        <button className="btn sm" onClick={debugModal.open}><LuSettings size={13} />Settings</button>
                     </div>
-                    <div className="row">
-                        <button className="btn sm" onClick={debugModal.open}>Settings ⚙️</button>
-                    </div>
-
                 </div>
             )}
         </div>
@@ -136,4 +134,11 @@ const SupportConfig = ({ className, info, config, onChange, botStopWatch, botSta
 }
 
 export default styled(SupportConfig)`
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    & > :empty {
+        display: none;
+    }
 `

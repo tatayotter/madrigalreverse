@@ -1,51 +1,54 @@
 import styled from 'styled-components'
+import { IconType } from 'react-icons/lib'
 
 import { ModeModel } from '../models/BotConfig'
 
 type Props = {
     className?: string,
-    image: string,
+    label: string,
+    icon?: IconType,
     mode: ModeModel,
     activeMode?: ModeModel,
     onSelect?: (mode: ModeModel) => void,
 }
 
-const Tab = ({ className, image, mode, activeMode, onSelect }: Props) => {
+const Tab = ({ className, label, icon: Icon, mode, activeMode, onSelect }: Props) => {
+    const active = activeMode === mode
     return (
-        <div className={[className, activeMode === mode ? `${className}--active` : ''].join(' ').trim()} onClick={() => onSelect?.(mode)}>
-            <img src={image} alt="" />
-        </div>
+        <button
+            type="button"
+            className={className}
+            data-active={active}
+            onClick={() => onSelect?.(mode)}
+        >
+            {Icon && <Icon size={14} />}
+            <span>{label}</span>
+        </button>
     )
 }
 
 export default styled(Tab)`
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    font-weight: 500;
     cursor: pointer;
-    border-radius: .25rem;
-    overflow: hidden;
-    height: 75px;
-    transition: all .25s ease;
-    filter: grayscale(100%);
-    opacity: 0.9;
-    
-    &--active {
-        filter: grayscale(0%);
-        
-        img {
-            border: 2px solid white;
-            border-radius: .25rem;
-        }
-    }
-    
+    transition: background-color .12s ease, color .12s ease;
+
     &:hover {
-        transform: scale(1.05);
-        filter: grayscale(0%);
+        color: var(--text);
     }
-    
-    & img {
-        width: 100%;
-        height: 75px;
-        object-fit: scale-down;
-        border-radius: .25rem;
-        backdrop-filter: blur(.5rem);
+
+    &[data-active=true] {
+        background: var(--surface-3);
+        color: var(--text);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
     }
 `

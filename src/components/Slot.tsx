@@ -19,23 +19,17 @@ const Slot = ({ className, type = 'Unused', index, onChange, toggleSlotModal, in
     }
     const symbolOrIcon = translateType(type)
     const useIcon = symbolOrIcon.startsWith('data:') || symbolOrIcon.includes('static');
-    var styleInline = {border: '1px solid hsl(48,58%,43%)'};
-    if(slot){
-        if(slot.slot_type != "Unused"){
-            styleInline = slot.slot_enabled === true ? {border: '1px solid green'} : {border: '1px solid red'};
-        }
-    }
-    // const styleClassName = slot.slot_enabled === true ? 'enabled_slot' : 'disabled_slot'
+    const slotState = !slot || slot.slot_type === "Unused" ? "unused" : slot.slot_enabled === true ? "enabled" : "disabled"
     return (
 
-        <div style={styleInline} className={className} onClick={(e) => toggleSlotModal(e,slot)} >
+        <div className={className} data-state={slotState} title={slot && slot.slot_type !== "Unused" ? `${translateDesc(type)[1]} (${slot.slot_enabled ? "on" : "off"}). Shift-click to toggle` : "Empty slot"} onClick={(e) => toggleSlotModal(e,slot)} >
             <div className="index">{indexName}</div>
             <div className='slot' onClick={handleChange}>
                 {useIcon && (
                     <img className="type" src={symbolOrIcon} alt="Slot icon" />
                 )}
                 {!useIcon && (
-                    <div className="type">{translateType(type)[0]}</div>
+                    <div className="type">{symbolOrIcon}</div>
                 )}
                 <div className="desc">{translateDesc(type)[0]}</div>
             </div>
@@ -49,66 +43,77 @@ export default styled(Slot)`
     justify-content: center;
     width: ${SLOT_SIZE_PX}px;
     height: ${SLOT_SIZE_PX}px;
-    background-color: hsla(0,0%,100%,.05);
-    border: 1px solid hsl(48,58%,43%);
-    border-radius: .25rem;
+    background-color: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     position: relative;
-    margin-top: .5rem;
+    margin: 14px 0;
     cursor: pointer;
+    transition: border-color .12s ease, background-color .12s ease;
 
     &:first-child {
         order: 1 !important;
     }
 
+    &[data-state=enabled] {
+        border-color: rgba(47, 191, 113, .7);
+        box-shadow: inset 0 0 0 1px rgba(47, 191, 113, .15);
+    }
+
+    &[data-state=disabled] {
+        border-color: rgba(229, 72, 77, .55);
+
+        & .slot {
+            opacity: .45;
+        }
+    }
+
     &:hover {
-        background-color: hsla(0,0%,100%,.1);
-        border: 1px solid hsl(48,65%,50%);
+        background-color: var(--surface-2);
+        border-color: var(--accent);
     }
 
     & .slot {
-        height:100%;
+        height: 100%;
         width: 100%;
-        text-align: center;
-    }
-
-    & .enabled_slot {
-        border: 1px solid green;
-    }
-
-    & .disabled_slot {
-        border: 1px solid red;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     & .index {
         position: absolute;
-        top: calc(-${SLOT_SIZE_PX / 3}px - 0.2rem);
+        top: -15px;
         width: 100%;
         text-align: center;
-        font-size: 0.75rem;
-        color: hsl(48,75%,75%);
-        text-shadow: 0 0 4px black;
+        font-size: 10px;
+        color: var(--text-faint);
+        font-variant-numeric: tabular-nums;
     }
 
     & .desc {
         position: absolute;
-        bottom: calc(-${SLOT_SIZE_PX / 3}px - 0.1rem);
+        bottom: -15px;
         width: 100%;
         text-align: center;
-        font-size: .75rem;
-        color: hsl(48,75%,75%);
-        text-shadow: 0 0 4px black;
+        font-size: 10px;
+        color: var(--text-muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     & div.type {
-        color: white;
-        font-size: 1.5rem;
+        color: var(--text);
+        font-size: 18px;
+        line-height: 1;
     }
 
     & img.type {
         width: 100%;
         height: 100%;
         object-fit: contain;
-        padding: .25rem;
-        border-radius: .25rem;
+        padding: 4px;
+        border-radius: var(--radius);
     }
 `

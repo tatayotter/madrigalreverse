@@ -25,7 +25,7 @@ const TimeInput = ({ className, value, onChange }: Props) => {
                 }}
             />
             {!stopWatch.validStringFormat(newValue) ?
-                <span className="unit" style={{color:"red"}} onClick={() => {setNewValue(stopWatch.toString())}}>Invalid</span> : <span className="unit" style={{color:"green"}}>Valid</span>
+                <span className="unit invalid" title="Format: hh:mm:ss:ms. Click to restore the last valid value" onClick={() => {setNewValue(stopWatch.toString())}}>Invalid</span> : <span className="unit">hh:mm:ss:ms</span>
             }
         </div>
     )
@@ -34,23 +34,44 @@ const TimeInput = ({ className, value, onChange }: Props) => {
 export default styled(TimeInput)`
     display: flex;
     align-items: center;
-    background: hsla(0,0%,0%,.75);
     width: 100%;
     flex-grow: 1;
-    border-radius: .25rem;
+    min-width: 200px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: var(--radius);
     position: relative;
-    border: 2px solid hsla(0,0%,0%,.75);
-    padding: .1rem .25rem;
-    color: white;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: border-color .12s ease;
+
+    &:hover {
+        border-color: var(--border-strong);
+    }
+
+    &:focus-within {
+        border-color: var(--accent);
+    }
 
     & input {
         all: unset;
         display: flex;
         flex-grow: 1;
+        width: 0;
+        min-width: 0;
         height: 100%;
+        user-select: text;
     }
 
     & .unit {
-        margin-left: .5rem;
+        margin-left: 8px;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    & .unit.invalid {
+        color: var(--danger);
+        cursor: pointer;
     }
 `
