@@ -137,7 +137,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         item={<button onClick={fleeModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
-                        label={<ConfigLabel name="On death event" helpText="" />}
+                        label={<ConfigLabel name="On death" helpText="Disconnect, or revive and go back to the farming spot" />}
                         item={<button onClick={onDeathModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
@@ -363,15 +363,30 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
             }/>
             {/* DEBUG END */}
             <Modal isShowing={onDeathModal.isShown} hide={onDeathModal.close}
-            title={<h4>Auto disconnect</h4>} body={
+            title={<h4>On death</h4>} body={
                 <ConfigTable>
                     <ConfigTableRow
                         label={<ConfigLabel name="No mob time out" helpText="After this time character will disconnect if no mobs were found" />}
                         item={<TimeInput value={config.mobs_timeout} onChange={value => onChange({...config, mobs_timeout: value})} />}
                     />
                     <ConfigTableRow
-                        label={<ConfigLabel name="Disconnect" helpText="Enable will automatically disconnect, otherwise we'll wait for revive" />}
+                        label={<ConfigLabel name="Disconnect" helpText="Close the game when the character dies. Ignored while Revive and return is on." />}
                         item={<BooleanSlider value={config.on_death_disconnect ?? true} onChange={value => onChange?.({ ...config, on_death_disconnect: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Revive and return" helpText="Revive in town, rest, then fly back (Board slot) or walk back to where you pressed Engage, using /position. The chat box must be visible." />}
+                        item={<BooleanSlider value={config.revive_return ?? false} onChange={value => onChange?.({ ...config, revive_return: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Rest in town" helpText="Seconds to wait after reviving so HP/MP/FP come back and buffs are cast. Default: 15" />}
+                        item={<NumericInput unit='s' value={config.revive_rest ?? 15} onChange={value => onChange({...config, revive_rest: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Max distance" helpText="Don't try to go back from farther than this, in /position units (probably another map). Default: 8000" />}
+                        item={<NumericInput unit='#' value={config.revive_max_distance ?? 8000} onChange={value => onChange({...config, revive_max_distance: value})} />}
                     />
                 </ConfigTable>
             }/>

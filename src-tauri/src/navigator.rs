@@ -47,6 +47,8 @@ pub struct Navigator {
     pub right_sign: f32,
     /// Game units per millisecond of walking
     pub speed: f32,
+    /// Longest single walk (or flight) before re-reading the position
+    pub max_step_ms: f32,
     /// Last turn: (Right = +ms / Left = -ms, heading before the turn)
     last_turn: Option<(f32, f32)>,
     /// The turn rate has been measured at least once
@@ -60,9 +62,22 @@ impl Default for Navigator {
             turn_rate: 0.15,
             right_sign: -1.0,
             speed: 0.006,
+            max_step_ms: 3000.0,
             last_turn: None,
             rate_known: false,
         }
+    }
+}
+
+impl Navigator {
+    /// On the board: faster, so longer steps between position reads.
+    pub fn flying() -> Self {
+        Self { speed: 0.02, max_step_ms: 10000.0, ..Self::default() }
+    }
+
+    /// Walking a long way (after reviving in town).
+    pub fn long_walk(&self) -> Self {
+        Self { max_step_ms: 6000.0, ..self.clone() }
     }
 }
 
@@ -102,7 +117,7 @@ impl Navigator {
 
     /// How long to walk to cover `distance`, in short enough steps to correct course.
     pub fn walk_ms(&self, distance: f32) -> u64 {
-        (distance / self.speed.max(0.0005)).clamp(400.0, 3000.0) as u64
+        (distance / self.speed.max(0.0005)).clamp(400.0, self.max_step_ms.max(400.0)) as u64
     }
 }
 
@@ -140,12 +155,15 @@ mod tests {
     }
 
     /// Same loop the farming behavior runs: walk, measure heading, turn, repeat.
-    fn steps_to_reach(mut world: World, home: (f32, f32), radius: f32) -> Option<usize> {
-        let mut nav = Navigator::default();
+    fn steps_to_reach(world: World, home: (f32, f32), radius: f32) -> Option<usize> {
+        steps_with(Navigator::default(), world, home, radius, 15)
+    }
+
+    fn steps_with(mut nav: Navigator, mut world: World, home: (f32, f32), radius: f32, max: usize) -> Option<usize> {
         let (mut px, mut pz) = (world.x, world.z);
         let mut last_walk = nav.walk_ms(100.0).min(600);
         world.walk(last_walk);
-        for step in 0..15 {
+        for step in 0..max {
             let (x, z) = (world.x, world.z);
             let dist = ((home.0 - x).powi(2) + (home.1 - z).powi(2)).sqrt();
             if dist <= radius {
@@ -175,6 +193,20 @@ mod tests {
                 assert!(steps.is_some(), "never arrived: turn {right_turns}, facing {facing}");
                 println!("turn {right_turns} facing {facing}: {:?} steps", steps);
                 assert!(steps.unwrap() <= 8, "too slow: {:?} steps", steps);
+            }
+        }
+    }
+
+    #[test]
+    fn flies_back_from_town() {
+        // ~3000 units away, board much faster than our guess or slower
+        for speed in [0.015, 0.03, 0.08] {
+            for right_turns in [0.1, -0.3] {
+                let world = World { x: 2400.0, z: -1800.0, facing: 45.0, right_turns, speed };
+                let steps = steps_with(Navigator::flying(), world, (0.0, 0.0), 80.0, 60);
+                println!("fly speed {speed} turn {right_turns}: {:?} steps", steps);
+                assert!(steps.is_some(), "never arrived: speed {speed}, turn {right_turns}");
+                assert!(steps.unwrap() <= 40, "too slow: {:?} steps", steps);
             }
         }
     }

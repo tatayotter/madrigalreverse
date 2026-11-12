@@ -213,6 +213,13 @@ pub struct FarmingConfig {
     /// Seconds between position checks
     area_check_interval: Option<u32>,
 
+    /// After dying: revive in town, then go back to where the bot was engaged
+    revive_return: Option<bool>,
+    /// Seconds to rest in town after reviving before heading back
+    revive_rest: Option<u32>,
+    /// Don't try to go back from farther than this (game units)
+    revive_max_distance: Option<u32>,
+
     /// Run away from violets (and giants, if a giant name color is set)
     giant_flee: Option<bool>,
     /// Flee when a dangerous mob's name is within this many pixels of the screen center
@@ -249,6 +256,15 @@ impl FarmingConfig {
     }
     pub fn area_check_interval(&self) -> u64 {
         self.area_check_interval.unwrap_or(20).clamp(5, 600) as u64
+    }
+    pub fn revive_return(&self) -> bool {
+        self.revive_return.unwrap_or(false)
+    }
+    pub fn revive_rest(&self) -> u64 {
+        self.revive_rest.unwrap_or(15).min(600) as u64
+    }
+    pub fn revive_max_distance(&self) -> f32 {
+        self.revive_max_distance.unwrap_or(8000).clamp(100, 50000) as f32
     }
     pub fn flee_radius(&self) -> i32 {
         self.flee_radius.unwrap_or(250).min(2000) as i32

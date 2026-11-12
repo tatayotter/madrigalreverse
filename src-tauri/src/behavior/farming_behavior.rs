@@ -89,6 +89,20 @@ pub struct FarmingBehavior<'a> {
     /// Stay in area gave up (we're far away, probably another map) until the next Engage
     area_paused: bool,
     navigator: Navigator,
+    fly_navigator: Navigator,
+    /// Revive and return: when we came back to life, and whether the trip back is still to do
+    revived_at: Option<Instant>,
+    return_pending: bool,
+    return_attempts: u32,
+    /// Couldn't get back after a revive: stay put until the next Engage
+    stranded: bool,
+    last_stranded_log: Option<Instant>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Travel {
+    Walk,
+    Fly,
 }
 
 impl<'a> Behavior<'a> for FarmingBehavior<'a> {
@@ -137,6 +151,12 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             last_area_check: None,
             area_paused: false,
             navigator: Navigator::default(),
+            fly_navigator: Navigator::flying(),
+            revived_at: None,
+            return_pending: false,
+            return_attempts: 0,
+            stranded: false,
+            last_stranded_log: None,
         }
     }
 
@@ -151,6 +171,10 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         self.home_region = None;
         self.last_area_check = None;
         self.area_paused = false;
+        self.revived_at = None;
+        self.return_pending = false;
+        self.return_attempts = 0;
+        self.stranded = false;
         self.stop(_config);
     }
 
@@ -166,6 +190,21 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         self.track_hp(image);
         self.read_healer_status(config);
         self.check_restorations(config, image);
+
+        // Revive and return: rest in town, then go back to the farming spot
+        if self.stranded {
+            if self.last_stranded_log.map_or(true, |t| t.elapsed() >= Duration::from_secs(60)) {
+                slog::warn!(self.logger, "Couldn't get back to the farming spot after reviving, so the bot is waiting here. Press Stop and Engage again where you want to farm.");
+                self.last_stranded_log = Some(Instant::now());
+            }
+            frontend_info.set_is_attacking(false);
+            std::thread::sleep(Duration::from_millis(500));
+            return;
+        }
+        if self.return_pending && self.return_after_revive(config, image) {
+            frontend_info.set_is_attacking(false);
+            return;
+        }
 
         // Duo: healer died -> drop the fight and get on the board, then wait for it
         if self.check_healer_death_escape(config) {
@@ -420,7 +459,12 @@ impl FarmingBehavior<'_> {
 
     /// Stay in area. Returns true if it used this iteration (read the position or walked).
     fn check_area(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer) -> bool {
-        if !config.stay_in_area() || self.area_paused || self.is_under_attack() {
+        let wants_home = config.stay_in_area() || config.revive_return();
+        if !wants_home || self.is_under_attack() {
+            return false;
+        }
+        // Only the farming spot is needed for Revive and return
+        if self.home.is_some() && (!config.stay_in_area() || self.area_paused) {
             return false;
         }
         let due = self
@@ -437,7 +481,7 @@ impl FarmingBehavior<'_> {
         };
         let Some(home) = self.home else {
             self.home_region = self.read_region(image);
-            slog::info!(self.logger, "Area home set"; "x" => pos.x, "z" => pos.z, "radius" => config.area_radius(), "region" => self.home_region.as_deref().unwrap_or("?"));
+            slog::info!(self.logger, "Farming spot saved"; "x" => pos.x, "z" => pos.z, "radius" => config.area_radius(), "region" => self.home_region.as_deref().unwrap_or("?"));
             self.home = Some(pos);
             return true;
         };
@@ -471,54 +515,212 @@ impl FarmingBehavior<'_> {
         true
     }
 
-    /// Walk back towards `home`: short walks, measuring the direction after each,
-    /// turning towards home in between.
-    fn walk_home(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer, home: Position, start: Position) {
-        use crate::movement::prelude::*;
+    /// Walk back towards `home` (Stay in area).
+    fn walk_home(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer, home: Position, start: Position) -> bool {
         // Close enough: well inside the area, so we don't bounce on the edge
         let arrive = config.area_radius() * 0.4;
-        let mut before = start;
-        let mut walk_ms = 600;
-        play!(self.movement => [HoldKeyFor("W", dur::Fixed(walk_ms)),]);
+        self.travel(image, home, start, arrive, Travel::Walk, 12)
+    }
 
-        for _ in 0..12 {
-            if self.is_under_attack() {
-                slog::info!(self.logger, "Attacked while walking home, fighting first");
-                return;
+    /// Go towards `home` in short walks or flights, measuring the direction after each
+    /// and turning towards home in between. Returns true once within `arrive`.
+    fn travel(
+        &mut self,
+        image: &mut ImageAnalyzer,
+        home: Position,
+        start: Position,
+        arrive: f32,
+        how: Travel,
+        max_steps: usize
+    ) -> bool {
+        let mut nav = match how {
+            Travel::Walk if max_steps > 12 => self.navigator.long_walk(),
+            Travel::Walk => self.navigator.clone(),
+            Travel::Fly => self.fly_navigator.clone(),
+        };
+        let arrived = self.travel_with(&mut nav, image, home, start, arrive, how, max_steps);
+        match how {
+            // Keep what we learned, but not the longer steps
+            Travel::Walk => {
+                nav.max_step_ms = self.navigator.max_step_ms;
+                self.navigator = nav;
             }
-            let Some(pos) = self.read_position_checked(image) else { return };
+            Travel::Fly => self.fly_navigator = nav,
+        }
+        arrived
+    }
+
+    fn travel_with(
+        &mut self,
+        nav: &mut Navigator,
+        image: &mut ImageAnalyzer,
+        home: Position,
+        start: Position,
+        arrive: f32,
+        how: Travel,
+        max_steps: usize
+    ) -> bool {
+        use crate::movement::prelude::*;
+        let what = if how == Travel::Fly { "Flying" } else { "Walking" };
+        let mut before = start;
+        let mut step_ms = 600.min(nav.walk_ms(start.distance_to(&home)));
+        play!(self.movement => [HoldKeyFor("W", dur::Fixed(step_ms)),]);
+        let mut stuck = 0;
+
+        for _ in 0..max_steps {
+            // Monsters can't reach us on the board
+            if how == Travel::Walk && self.is_under_attack() {
+                slog::info!(self.logger, "Attacked on the way, fighting first");
+                return false;
+            }
+            let Some(pos) = self.read_position_checked(image) else { return false };
             let dist = pos.distance_to(&home);
             if dist <= arrive {
-                slog::info!(self.logger, "Back home"; "distance" => dist);
-                return;
+                slog::info!(self.logger, "Arrived"; "how" => what, "distance" => dist);
+                return true;
             }
             let moved = pos.distance_to(&before);
             if moved < 0.5 {
-                // Stuck on something: jump to the side
-                slog::debug!(self.logger, "Not moving, jumping"; "moved" => moved);
+                stuck += 1;
+                if stuck > 4 {
+                    slog::warn!(self.logger, "Stuck, giving up"; "how" => what, "distance" => dist);
+                    return false;
+                }
                 let key = ["A", "D"].choose(&mut self.rng).copied().unwrap_or("A");
+                slog::debug!(self.logger, "Not moving, going around"; "how" => what, "moved" => moved);
+                // Walking: jump sideways. Flying: hold Space to climb over it.
+                let hold = if how == Travel::Fly { 1500 } else { 800 };
                 play!(self.movement => [
                     HoldKeyFor(key, dur::Fixed(300)),
                     HoldKeys(vec!["W", "Space"]),
-                    Wait(dur::Fixed(800)),
+                    Wait(dur::Fixed(hold)),
                     ReleaseKeys(vec!["Space", "W"]),
                 ]);
                 before = pos;
-                walk_ms = 800;
+                step_ms = 800;
                 continue;
             }
+            stuck = 0;
             let heading = navigator::heading(pos.x - before.x, pos.z - before.z);
-            self.navigator.learn_walk(moved, walk_ms, heading);
+            nav.learn_walk(moved, step_ms, heading);
             let want = navigator::heading(home.x - pos.x, home.z - pos.z);
-            if let Some((key, ms)) = self.navigator.turn_for(navigator::angle_diff(want, heading), heading) {
+            if let Some((key, ms)) = nav.turn_for(navigator::angle_diff(want, heading), heading) {
                 play!(self.movement => [HoldKeyFor(key.key(), dur::Fixed(ms)),]);
             }
-            walk_ms = self.navigator.walk_ms(dist);
-            slog::debug!(self.logger, "Walking home"; "distance" => dist, "walk_ms" => walk_ms, "turn_rate" => self.navigator.turn_rate, "speed" => self.navigator.speed);
+            step_ms = nav.walk_ms(dist);
+            slog::debug!(self.logger, "On the way"; "how" => what, "distance" => dist, "step_ms" => step_ms, "turn_rate" => nav.turn_rate, "speed" => nav.speed);
             before = pos;
-            play!(self.movement => [HoldKeyFor("W", dur::Fixed(walk_ms)),]);
+            play!(self.movement => [HoldKeyFor("W", dur::Fixed(step_ms)),]);
         }
-        slog::warn!(self.logger, "Gave up walking home after 12 steps");
+        slog::warn!(self.logger, "Gave up on the way"; "how" => what, "steps" => max_steps);
+        false
+    }
+
+    /// Called by the main loop when the character comes back to life.
+    pub fn on_revived(&mut self, config: &FarmingConfig) {
+        self.state = State::SearchingForEnemy;
+        self.is_attacking = false;
+        self.concurrent_mobs_under_attack = 0;
+        self.last_hp_drop_time = None;
+        self.avoided_bounds.clear();
+        // We moved far: don't treat the next position as an OCR mistake
+        self.last_position = None;
+        if !config.revive_return() {
+            return;
+        }
+        if self.home.is_none() {
+            slog::warn!(self.logger, "Revived, but the farming spot wasn't saved yet (it's saved shortly after Engage), so not going back");
+            return;
+        }
+        slog::info!(self.logger, "Revived. Resting, then going back to the farming spot"; "rest_s" => config.revive_rest());
+        self.revived_at = Some(Instant::now());
+        self.return_pending = true;
+        self.return_attempts = 0;
+    }
+
+    /// Revive and return. Returns true while it's busy (resting or travelling).
+    fn return_after_revive(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer) -> bool {
+        use crate::movement::prelude::*;
+        let Some(home) = self.home else {
+            self.return_pending = false;
+            return false;
+        };
+        // Something hit us in town or on the way: fight it first
+        if self.is_under_attack() {
+            return false;
+        }
+        // Rest: let HP/MP/FP come back and the buffs be cast again
+        if self.revived_at.map_or(false, |t| t.elapsed().as_secs() < config.revive_rest()) {
+            if !self.wait_cooldown() {
+                if let Some(buff) = self.get_slot_for(config, None, SlotType::BuffSkill, false) {
+                    self.send_slot(buff);
+                    self.wait(Duration::from_millis(1500));
+                }
+            }
+            std::thread::sleep(Duration::from_millis(300));
+            return true;
+        }
+
+        self.return_attempts += 1;
+        if self.return_attempts > 4 {
+            self.give_up_return("too many tries");
+            return true;
+        }
+        let Some(pos) = self.read_position_checked(image) else {
+            slog::warn!(self.logger, "Couldn't read the position after reviving"; "hint" => "keep the chat box visible and uncovered");
+            return true;
+        };
+        let dist = pos.distance_to(&home);
+        let region = self.read_region(image);
+        slog::info!(self.logger, "Going back to the farming spot"; "distance" => dist,
+            "region" => region.as_deref().unwrap_or("?"), "farm_region" => self.home_region.as_deref().unwrap_or("?"));
+        if dist > config.revive_max_distance() {
+            self.give_up_return("the farming spot is farther than the max distance (another map?)");
+            return true;
+        }
+
+        let near = config.area_radius().max(30.0);
+        let mut pos = pos;
+        if dist > near * 4.0 {
+            if let Some((bar, slot)) = config.slot_index(SlotType::Flying) {
+                slog::info!(self.logger, "Getting on the board");
+                send_slot_eval(self.window, bar, slot);
+                // Mounting takes a few seconds
+                std::thread::sleep(Duration::from_millis(3500));
+                let arrived = self.travel(image, home, pos, near.max(80.0), Travel::Fly, 60);
+                slog::info!(self.logger, "Getting off the board");
+                send_slot_eval(self.window, bar, slot);
+                std::thread::sleep(Duration::from_millis(3000));
+                if !arrived {
+                    return true; // try again (counts as an attempt)
+                }
+                self.last_position = None;
+                match self.read_position_checked(image) {
+                    Some(p) => pos = p,
+                    None => return true,
+                }
+            } else {
+                slog::info!(self.logger, "No Board slot set, walking back");
+            }
+        }
+        if !self.travel(image, home, pos, config.area_radius() * 0.4, Travel::Walk, 60) {
+            return true;
+        }
+        slog::info!(self.logger, "Back at the farming spot, farming again");
+        play!(self.movement => [PressKey("Escape"),]);
+        self.return_pending = false;
+        self.revived_at = None;
+        self.area_paused = false;
+        self.last_area_check = Some(Instant::now());
+        self.avoided_bounds.clear();
+        self.state = State::SearchingForEnemy;
+        false
+    }
+
+    fn give_up_return(&mut self, why: &str) {
+        slog::warn!(self.logger, "Giving up on going back to the farming spot"; "why" => why);
+        self.return_pending = false;
+        self.stranded = true;
     }
 
     fn was_hit_within(&self, ms: u128) -> bool {
