@@ -70,5 +70,7 @@ pub fn eval_simple_click(window: &Window, pos: Point) {
 }
 
 pub fn eval_send_message(window: &Window, text: &str) {
-    drop(window.eval(format!("setInputChat({0})", text).as_str()));
+    // Quote the text as a JS string (it was passed unquoted, which broke on "/" and spaces)
+    let quoted = serde_json::to_string(text).unwrap_or_else(|_| "\"\"".into());
+    drop(window.eval(format!("setInputChat({0})", quoted).as_str()));
 }

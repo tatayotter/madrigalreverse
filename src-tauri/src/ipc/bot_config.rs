@@ -206,6 +206,13 @@ pub struct FarmingConfig {
     on_afk_disconnect: Option<bool>,
     afk_timeout: Option<u64>,
 
+    /// Walk back when farther than `area_radius` from where the bot was engaged
+    stay_in_area: Option<bool>,
+    /// In game units, as shown by /position
+    area_radius: Option<u32>,
+    /// Seconds between position checks
+    area_check_interval: Option<u32>,
+
     /// Run away from violets (and giants, if a giant name color is set)
     giant_flee: Option<bool>,
     /// Flee when a dangerous mob's name is within this many pixels of the screen center
@@ -233,6 +240,15 @@ pub struct FarmingConfig {
 impl FarmingConfig {
     pub fn giant_flee(&self) -> bool {
         self.giant_flee.unwrap_or(false)
+    }
+    pub fn stay_in_area(&self) -> bool {
+        self.stay_in_area.unwrap_or(false)
+    }
+    pub fn area_radius(&self) -> f32 {
+        self.area_radius.unwrap_or(50).clamp(5, 5000) as f32
+    }
+    pub fn area_check_interval(&self) -> u64 {
+        self.area_check_interval.unwrap_or(20).clamp(5, 600) as u64
     }
     pub fn flee_radius(&self) -> i32 {
         self.flee_radius.unwrap_or(250).min(2000) as i32

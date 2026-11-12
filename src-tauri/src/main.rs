@@ -9,6 +9,8 @@ mod log_file;
 mod monster_db;
 mod movement;
 mod ocr;
+mod position;
+mod navigator;
 mod platform;
 mod recorder;
 mod utils;
