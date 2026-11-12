@@ -427,6 +427,9 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
 
         let mut last_mode: Option<BotMode> = None;
         let mut last_is_running: Option<bool> = None;
+        // Diagnostics: log state changes once instead of every frame
+        let mut last_alive_state: Option<AliveState> = None;
+        let mut last_capture_warn: Option<std::time::Instant> = None;
         let mut frontend_info: Arc<RwLock<FrontendInfo>> = Arc::new(
             RwLock::new(FrontendInfo::deserialize_or_default())
         );
@@ -528,9 +531,22 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
             }
 
             frontend_info_mut.set_is_running(true);
+            if last_is_running != Some(true) {
+                slog::info!(logger, "Bot engaged"; "mode" => config.mode().map(|m| m.to_string()).unwrap_or_default(), "window_id" => image_analyzer.window_id);
+                last_alive_state = None;
+            }
 
             // Capture client window
             image_analyzer.capture_window(&logger);
+
+            if !image_analyzer.image_is_some() {
+                let due = last_capture_warn.map_or(true, |t| t.elapsed() >= Duration::from_secs(10));
+                if due {
+                    slog::warn!(logger, "Can't capture the game window, so the bot is idle"; "window_id" => image_analyzer.window_id, "hint" => "keep the Neuz game window open and not minimized");
+                    last_capture_warn = Some(std::time::Instant::now());
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
 
             // Try capturing the window contents
             if image_analyzer.image_is_some() {
@@ -547,6 +563,15 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                     return;
                 }
                 let is_alive = image_analyzer.client_stats.is_alive;
+                if last_alive_state != Some(is_alive) {
+                    let stats = &image_analyzer.client_stats;
+                    match is_alive {
+                        AliveState::StatsTrayClosed => slog::warn!(logger, "Can't read HP/MP/FP bars, so the bot is waiting"; "hint" => "open the character status box (T) at the top left and keep it uncovered"),
+                        AliveState::Alive => slog::info!(logger, "Character is alive"; "hp" => stats.hp.value, "mp" => stats.mp.value, "fp" => stats.fp.value),
+                        AliveState::Dead => slog::info!(logger, "Character is dead"; "mp" => stats.mp.value, "fp" => stats.fp.value),
+                    }
+                    last_alive_state = Some(is_alive);
+                }
                 let return_earlier = match is_alive {
                     AliveState::StatsTrayClosed => true,
                     AliveState::Alive => {
