@@ -18,6 +18,7 @@ import { MsFormat, StopWatchValues } from '../utils/StopWatch'
 import { DefaultValuesChecker } from '../utils/DefaultValuesChecker'
 import TimeInput from '../config/TimeInput'
 import StringList from '../config/StringList'
+import { invoke } from '@tauri-apps/api'
 
 type Props = {
     className?: string,
@@ -70,6 +71,23 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     ]
 
     const [debugMode, setDebugMode] = useState(false);
+
+    // Screenshot recorder: 60 frames, one per second
+    const RECORD_FRAMES = 60
+    const [recordingLeft, setRecordingLeft] = useState(0)
+    useEffect(() => {
+        if (recordingLeft <= 0) return
+        const timer = setTimeout(() => setRecordingLeft(recordingLeft - 1), 1000)
+        return () => clearTimeout(timer)
+    }, [recordingLeft])
+    const toggleRecording = () => {
+        if (recordingLeft > 0) {
+            invoke('stop_recording').then(() => setRecordingLeft(0))
+        } else {
+            invoke('start_recording', { frames: RECORD_FRAMES, intervalMs: 1000 })
+                .then(dir => { if (dir) setRecordingLeft(RECORD_FRAMES) })
+        }
+    }
 
     useEffect(() => {
         if (debugMode) {
@@ -125,6 +143,14 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         item={<BooleanSlider value={debugMode} onChange={value => setDebugMode(value)} />}
                     />
 
+                    <ConfigTableRow
+                        label={<ConfigLabel name="Record screenshots" helpText="Saves one game frame per second for 60 seconds, plus what the bot detected in each, so problems can be checked offline. The bot must be engaged (running)." />}
+                        item={<button onClick={toggleRecording}>{recordingLeft > 0 ? `⏹ Stop (${recordingLeft}s)` : '⏺ Record'}</button>}
+                    />
+                    <ConfigTableRow
+                        label={<ConfigLabel name="Recordings folder" helpText="Zip a recording folder and send it to get detection fixed" />}
+                        item={<button onClick={() => invoke('open_recordings_folder')}>📁</button>}
+                    />
                     <ConfigTableRow
                         label={<ConfigLabel name="Reset all slots" helpText="" />}
                         item={<button onClick={resetSlotYesNo.open}>⚙️</button>}

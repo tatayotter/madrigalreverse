@@ -39,8 +39,21 @@ impl ImageAnalyzer {
         Self {
             window_id: 0,
             image: None,
-            client_stats: ClientStats::new(window.to_owned()),
+            client_stats: ClientStats::new(Some(window.to_owned())),
         }
+    }
+
+    /// Analyse a saved screenshot instead of a live window (recordings, tests).
+    pub fn from_image(image: ImageBuffer) -> Self {
+        Self {
+            window_id: 0,
+            image: Some(image),
+            client_stats: ClientStats::new(None),
+        }
+    }
+
+    pub fn image(&self) -> Option<&ImageBuffer> {
+        self.image.as_ref()
     }
 
     pub fn image_is_some(&self) -> bool {

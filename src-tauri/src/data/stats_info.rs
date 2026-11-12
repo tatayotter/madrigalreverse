@@ -51,10 +51,11 @@ pub struct ClientStats {
     pub target_distance: Option<i32>,
     pub is_alive: AliveState,
     pub stat_try_not_detected_count: i32,
-    window: Window,
+    /// `None` when analysing saved screenshots offline (no game window to send keys to)
+    window: Option<Window>,
 }
 impl ClientStats {
-    pub fn new(window: Window) -> Self {
+    pub fn new(window: Option<Window>) -> Self {
         Self {
             has_tray_open: false,
             hp: StatInfo::new(0, 100, StatusBarKind::Hp, None),
@@ -128,7 +129,9 @@ impl ClientStats {
                 self.stat_try_not_detected_count = 0;
 
                 // Try to open char stat tray
-                eval_send_key(&self.window, "T", KeyMode::Press);
+                if let Some(window) = &self.window {
+                    eval_send_key(window, "T", KeyMode::Press);
+                }
             }
             false
         } else {
