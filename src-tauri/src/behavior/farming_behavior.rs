@@ -85,6 +85,8 @@ pub struct FarmingBehavior<'a> {
     home: Option<Position>,
     last_position: Option<Position>,
     last_area_check: Option<Instant>,
+    /// Stay in area gave up (we're far away, probably another map) until the next Engage
+    area_paused: bool,
     navigator: Navigator,
 }
 
@@ -131,6 +133,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             home: None,
             last_position: None,
             last_area_check: None,
+            area_paused: false,
             navigator: Navigator::default(),
         }
     }
@@ -144,6 +147,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         // A new Engage sets a new home
         self.home = None;
         self.last_area_check = None;
+        self.area_paused = false;
         self.stop(_config);
     }
 
@@ -397,7 +401,7 @@ impl FarmingBehavior<'_> {
 
     /// Stay in area. Returns true if it used this iteration (read the position or walked).
     fn check_area(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer) -> bool {
-        if !config.stay_in_area() || self.is_under_attack() {
+        if !config.stay_in_area() || self.area_paused || self.is_under_attack() {
             return false;
         }
         let due = self
@@ -419,6 +423,14 @@ impl FarmingBehavior<'_> {
         };
         let dist = pos.distance_to(&home);
         slog::debug!(self.logger, "Distance from home"; "distance" => dist, "radius" => config.area_radius());
+        // Much farther than anyone walks between checks: we teleported, revived in town
+        // or changed map (/position doesn't say which map). Don't try to walk there.
+        let max_walk = (config.area_radius() * 10.0).max(500.0);
+        if dist > max_walk {
+            slog::warn!(self.logger, "Far away from home (teleport, revive or another map?). Not walking back; Stay in area is paused until the next Engage."; "distance" => dist);
+            self.area_paused = true;
+            return true;
+        }
         if dist > config.area_radius() {
             slog::info!(self.logger, "Too far from home, walking back"; "distance" => dist);
             self.walk_home(config, image, home, pos);
