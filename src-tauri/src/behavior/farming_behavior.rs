@@ -813,8 +813,8 @@ impl FarmingBehavior<'_> {
         // Set cursor position and simulate a click
         eval_mob_click(self.window, point);
 
-        // Wait a few ms before transitioning state
-        std::thread::sleep(Duration::from_millis(150));
+        // Wait for the click to land: the page probes up to 4 spots, 35ms each
+        std::thread::sleep(Duration::from_millis(220));
         self.is_attacking = false;
         State::VerifyTarget(mob)
     }
