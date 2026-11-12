@@ -75,7 +75,7 @@ pub struct FarmingBehavior<'a> {
     last_duo_log: Option<Instant>,
     /// Healer was seen alive (so a death is a change worth reacting to)
     healer_was_alive: bool,
-    /// We flew away because the healer died, and are waiting for it to come back
+    /// We got on the board because the healer died, and are waiting for it to come back
     escaped_from_healer_death: bool,
     /// The healer is being hit: only go for aggressive monsters
     protecting_healer: bool,
@@ -146,7 +146,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         self.read_healer_status(config);
         self.check_restorations(config, image);
 
-        // Duo: healer died -> drop the fight and fly away, then wait for it
+        // Duo: healer died -> drop the fight and get on the board, then wait for it
         if self.check_healer_death_escape(config) {
             frontend_info.set_is_attacking(false);
             return;
@@ -220,10 +220,10 @@ impl FarmingBehavior<'_> {
 
         if self.escaped_from_healer_death {
             if dead {
-                return true; // keep waiting in the air
+                return true; // keep waiting on the board
             }
             if status.map_or(false, |s| s.alive && now.saturating_sub(s.updated_ms) <= duo::STALE_AFTER_MS) {
-                slog::info!(self.logger, "Healer is back, landing and resuming");
+                slog::info!(self.logger, "Healer is back, getting off the board and resuming");
                 self.escaped_from_healer_death = false;
                 self.healer_was_alive = true;
                 // Using the board again gets off it
@@ -247,38 +247,26 @@ impl FarmingBehavior<'_> {
             return false;
         }
 
-        slog::warn!(self.logger, "Healer died, dropping the fight and flying away");
+        slog::warn!(self.logger, "Healer died, dropping the fight and getting on the board");
         self.healer_was_alive = false;
         self.escaped_from_healer_death = true;
         self.is_attacking = false;
         self.concurrent_mobs_under_attack = 0;
         self.state = State::SearchingForEnemy;
 
+        // Monsters don't attack you while you're on the board, so mounting is enough.
         use crate::movement::prelude::*;
-        let fly_ms = config.duo_escape_fly_duration();
+        play!(self.movement => [
+            PressKey("Escape"),
+        ]);
         match config.slot_index(SlotType::Flying) {
             Some((bar, slot)) => {
-                play!(self.movement => [
-                    PressKey("Escape"),
-                ]);
                 send_slot_eval(self.window, bar, slot);
                 // Mounting the board takes a few seconds
                 std::thread::sleep(Duration::from_millis(3500));
-                play!(self.movement => [
-                    HoldKeys(vec!["W", "Space"]),
-                    Wait(dur::Fixed(fly_ms)),
-                    ReleaseKeys(vec!["Space", "W"]),
-                ]);
             }
             None => {
-                slog::warn!(self.logger, "No Flying slot set, running away on foot instead");
-                play!(self.movement => [
-                    PressKey("Escape"),
-                    Rotate(rot::Random, dur::Random(400..900)),
-                    HoldKeys(vec!["W", "Space"]),
-                    Wait(dur::Fixed(fly_ms)),
-                    ReleaseKeys(vec!["Space", "W"]),
-                ]);
+                slog::warn!(self.logger, "No Board slot set, can't get on the board; just stopping");
             }
         }
         true

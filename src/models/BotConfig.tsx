@@ -13,7 +13,7 @@ export const slotTypes = ["Unused", "Food", "Pill", "HealSkill","AOEHealSkill", 
                                                     "AOEAttackSkill", "BuffSkill", "RezSkill", "Flying", "PartySkill"] as const;
 export const thresholdSlotTypes = ["Food", "Pill","HealSkill","MpRestorer", "FpRestorer", 'AOEHealSkill'];
 export const cooldownSlotTypes = ["Food", "Pill", "HealSkill", "AOEHealSkill", "AttackSkill","AOEAttackSkill", "BuffSkill", "MpRestorer", "FpRestorer", "PickupPet","PartySkill"];
-// "Flying" is allowed for farming: the duo escape uses the board to fly away
+// "Flying" (Board) is allowed for farming: the duo escape gets on the board when the healer dies
 export const farmingSlotsBlacklist = ["RezSkill","AOEHealSkill"]
 //if we are leveling someone, the support role might want to pick up
 export const supportSlotsBlacklist = ["AttackSkill","AOEAttackSkill"]
@@ -125,7 +125,6 @@ export type FarmingConfigModel = Partial<{
     duo_healer_min_mp: number,
     duo_protect_healer: boolean,
     duo_escape_on_healer_death: boolean,
-    duo_escape_fly_duration: number,
 
     name_reading: boolean,
     monster_whitelist: string[],
