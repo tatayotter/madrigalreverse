@@ -191,9 +191,56 @@ pub struct FarmingConfig {
 
     on_afk_disconnect: Option<bool>,
     afk_timeout: Option<u64>,
+
+    /// Run away from violets (and giants, if a giant name color is set)
+    giant_flee: Option<bool>,
+    /// Flee when a dangerous mob's name is within this many pixels of the screen center
+    flee_radius: Option<u32>,
+    giant_mobs_colors: Option<[Option<u8>; 3]>,
+    giant_tolerence: Option<u8>,
+
+    /// Discord webhook alerts
+    discord_webhook_url: Option<String>,
+    discord_notify_death: Option<bool>,
+    discord_notify_danger: Option<bool>,
+    discord_notify_disconnect: Option<bool>,
 }
 
 impl FarmingConfig {
+    pub fn giant_flee(&self) -> bool {
+        self.giant_flee.unwrap_or(false)
+    }
+    pub fn flee_radius(&self) -> i32 {
+        self.flee_radius.unwrap_or(250).min(2000) as i32
+    }
+    /// Giant detection is only active once all three color components are set.
+    pub fn giant_mobs_colors(&self) -> Option<[u8; 3]> {
+        match self.giant_mobs_colors {
+            Some([Some(r), Some(g), Some(b)]) => Some([r, g, b]),
+            _ => None,
+        }
+    }
+    pub fn giant_tolerence(&self) -> u8 {
+        self.giant_tolerence.unwrap_or(10)
+    }
+
+    /// Returns the webhook URL only if it looks like a valid https URL.
+    pub fn discord_webhook_url(&self) -> Option<String> {
+        self.discord_webhook_url
+            .as_ref()
+            .map(|url| url.trim().to_string())
+            .filter(|url| url.starts_with("https://"))
+    }
+    pub fn discord_notify_death(&self) -> bool {
+        self.discord_notify_death.unwrap_or(true)
+    }
+    pub fn discord_notify_danger(&self) -> bool {
+        self.discord_notify_danger.unwrap_or(true)
+    }
+    pub fn discord_notify_disconnect(&self) -> bool {
+        self.discord_notify_disconnect.unwrap_or(true)
+    }
+
     pub fn on_afk_disconnect(&self) -> bool {
         self.on_afk_disconnect.unwrap_or(false)
     }

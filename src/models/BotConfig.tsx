@@ -112,6 +112,16 @@ export type FarmingConfigModel = Partial<{
     on_afk_disconnect: boolean,
     afk_timeout: number,
     afk_ready_to_disconnect: boolean,
+
+    giant_flee: boolean,
+    flee_radius: number,
+    giant_mobs_colors: number[],
+    giant_tolerence: number,
+
+    discord_webhook_url: string,
+    discord_notify_death: boolean,
+    discord_notify_danger: boolean,
+    discord_notify_disconnect: boolean,
 }>
 
 export type SupportConfigModel = Partial<{

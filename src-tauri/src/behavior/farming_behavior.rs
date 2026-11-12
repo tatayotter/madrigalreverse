@@ -10,12 +10,19 @@ use crate::{
     image_analyzer::ImageAnalyzer,
     ipc::{ BotConfig, FarmingConfig, FrontendInfo, SlotType },
     movement::MovementAccessor,
+    notifications::{ send_discord, send_discord_blocking },
     platform::{ eval_mob_click, send_slot_eval },
     play,
     utils::DateTime,
 };
 
 const MAX_DISTANCE_FOR_AOE: i32 = 75;
+/// Minimum time between two flee moves.
+const FLEE_COOLDOWN_MS: u128 = 2500;
+/// Minimum time between two "danger nearby" Discord alerts.
+const DANGER_ALERT_COOLDOWN_MS: u128 = 60_000;
+/// If our HP dropped within this window, we treat ourselves as under attack.
+const UNDER_ATTACK_WINDOW_MS: u128 = 2000;
 
 #[derive(Debug, Clone, Copy)]
 enum State {
@@ -52,6 +59,10 @@ pub struct FarmingBehavior<'a> {
     concurrent_mobs_under_attack: u32,
     wait_duration: Option<Duration>,
     wait_start: Instant,
+    last_flee_time: Option<Instant>,
+    last_danger_alert: Option<Instant>,
+    last_hp_seen: u32,
+    last_hp_drop_time: Option<Instant>,
 }
 
 impl<'a> Behavior<'a> for FarmingBehavior<'a> {
@@ -83,6 +94,10 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             concurrent_mobs_under_attack: 0,
             wait_duration: None,
             wait_start: Instant::now(),
+            last_flee_time: None,
+            last_danger_alert: None,
+            last_hp_seen: 0,
+            last_hp_drop_time: None,
         }
     }
 
@@ -105,7 +120,14 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         let config = config.farming_config();
         // Update all needed timestamps
         self.update_timestamps(config);
+        self.track_hp(image);
         self.check_restorations(config, image);
+
+        // Giant / violet flee takes priority over everything else
+        if self.check_flee(config, image) {
+            frontend_info.set_is_attacking(self.is_attacking);
+            return;
+        }
 
         if !self.wait_cooldown() {
             let buff = self.get_slot_for(config, None, SlotType::BuffSkill, false);
@@ -142,6 +164,72 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
 }
 
 impl FarmingBehavior<'_> {
+    /// Remember when our HP last went down, so we know if something is hitting us.
+    fn track_hp(&mut self, image: &ImageAnalyzer) {
+        let hp = image.client_stats.hp.value;
+        if hp < self.last_hp_seen {
+            self.last_hp_drop_time = Some(Instant::now());
+        }
+        self.last_hp_seen = hp;
+    }
+
+    fn is_under_attack(&self) -> bool {
+        self.last_hp_drop_time.map_or(false, |t| t.elapsed().as_millis() < UNDER_ATTACK_WINDOW_MS)
+    }
+
+    /// If a violet or giant is close, drop the target and run the other way.
+    /// Returns true when a flee move was made this iteration.
+    fn check_flee(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer) -> bool {
+        if !config.giant_flee() || config.is_stop_fighting() {
+            return false;
+        }
+        if let Some(last) = self.last_flee_time {
+            if last.elapsed().as_millis() < FLEE_COOLDOWN_MS {
+                return false;
+            }
+        }
+        let (danger, dx) = match image.find_danger_near(config, config.flee_radius()) {
+            Some(found) => found,
+            None => {
+                return false;
+            }
+        };
+
+        let kind = match danger.target_type {
+            TargetType::Mob(MobType::Giant) => "giant",
+            _ => "violet",
+        };
+        slog::info!(self.logger, "Fleeing from dangerous mob"; "kind" => kind, "dx" => dx);
+
+        if
+            config.discord_notify_danger() &&
+            self.last_danger_alert.map_or(true, |t| t.elapsed().as_millis() > DANGER_ALERT_COOLDOWN_MS)
+        {
+            send_discord(
+                config.discord_webhook_url(),
+                format!("⚠️ A {} came close, running away from it.", kind)
+            );
+            self.last_danger_alert = Some(Instant::now());
+        }
+
+        // Turn away from the side the danger is on, then run forward while jumping.
+        use crate::movement::prelude::*;
+        let turn = if dx < 0 { rot::Right } else { rot::Left };
+        play!(self.movement => [
+            PressKey("Escape"),
+            Rotate(turn, dur::Random(500..800)),
+            HoldKeys(vec!["W", "Space"]),
+            Wait(dur::Random(1800..2500)),
+            ReleaseKeys(vec!["Space", "W"]),
+        ]);
+
+        self.is_attacking = false;
+        self.concurrent_mobs_under_attack = 0;
+        self.state = State::SearchingForEnemy;
+        self.last_flee_time = Some(Instant::now());
+        true
+    }
+
     fn wait_cooldown(&mut self) -> bool {
         if self.wait_duration.is_some() {
             if self.wait_start.elapsed() < self.wait_duration.unwrap() {
@@ -332,6 +420,12 @@ impl FarmingBehavior<'_> {
                 config.mobs_timeout() > 0 &&
                 last_no_ennemy_time.elapsed().as_millis() > config.mobs_timeout()
             {
+                if config.discord_notify_disconnect() {
+                    send_discord_blocking(
+                        config.discord_webhook_url(),
+                        "🔌 No monsters found for a while, disconnecting."
+                    );
+                }
                 self.window.app_handle().exit(0);
             }
         } else {
@@ -562,6 +656,27 @@ impl FarmingBehavior<'_> {
     ) -> State {
         if image.client_stats.target_on_screen && image.client_stats.target_is_mover {
             slog::debug!(self.logger, "Target is not a NPC"; "target_on_screen" => image.client_stats.target_on_screen, "target_is_mover" => image.client_stats.target_is_mover);
+
+            // Anti-killsteal: we haven't hit this mob yet, so if it's already hurt someone
+            // else is fighting it. Exception: if something is hitting us, fight back.
+            let target_hp = image.client_stats.target_hp.value;
+            if
+                config.prevent_already_attacked() &&
+                target_hp > 0 &&
+                target_hp < 100 &&
+                !self.is_under_attack()
+            {
+                slog::debug!(self.logger, "Skipping mob already attacked by someone else"; "target_hp" => target_hp);
+                self.stealed_target_count += 1;
+                self.avoid_last_click();
+                use crate::movement::prelude::*;
+                play!(self.movement => [
+                    PressKey("Escape"),
+                ]);
+                self.state = State::SearchingForEnemy;
+                return self.state;
+            }
+
             self.state = State::Attacking(mob);
         } else {
             self.avoid_last_click();
@@ -656,6 +771,9 @@ impl FarmingBehavior<'_> {
                 }
                 TargetType::Mob(MobType::Violet) => {
                     self.last_killed_type = MobType::Violet;
+                }
+                TargetType::Mob(MobType::Giant) => {
+                    self.last_killed_type = MobType::Giant;
                 }
                 TargetType::TargetMarker => {}
             }
