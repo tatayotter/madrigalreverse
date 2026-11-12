@@ -133,6 +133,78 @@ pub fn read(image: &ImageBuffer, logger: &Logger) -> Option<Position> {
     position
 }
 
+/// Color of the region name in the map window's top bar ("Madrigal > Flaris > ...").
+pub const REGION_COLOR: [u8; 3] = [255, 185, 0];
+const REGION_TOLERANCE: u8 = 40;
+/// Where the map's top bar text sits in the 800x600 client.
+const REGION_AREA: (u32, u32, u32, u32) = (100, 25, 420, 58);
+
+/// Find the region name (the orange word group in the map's top bar), without the ▼ after it.
+pub fn find_region(image: &ImageBuffer) -> Option<Bounds> {
+    let (x0, y0, x1, y1) = REGION_AREA;
+    let (x1, y1) = (x1.min(image.width()), y1.min(image.height()));
+    let near = |px: &[u8]| (0..3).all(|i| px[i].abs_diff(REGION_COLOR[i]) <= REGION_TOLERANCE);
+    // For each column: does it have orange pixels, and their vertical extent
+    let mut cols: Vec<(u32, u32, u32)> = Vec::new();
+    for x in x0..x1 {
+        let ys: Vec<u32> = (y0..y1).filter(|&y| near(&image.get_pixel(x, y).0)).collect();
+        if let (Some(&top), Some(&bottom)) = (ys.first(), ys.last()) {
+            cols.push((x, top, bottom));
+        }
+    }
+    let first = cols.first()?;
+    // Letters are at most a few pixels apart, words ~6; the ▼ comes after a wider gap.
+    let mut end = 0;
+    for i in 1..cols.len() {
+        if cols[i].0 - cols[i - 1].0 > 8 {
+            break;
+        }
+        end = i;
+    }
+    let group = &cols[..=end];
+    let top = group.iter().map(|c| c.1).min()?;
+    let bottom = group.iter().map(|c| c.2).max()?;
+    let right = group[end].0;
+    if right - first.0 < 8 {
+        return None;
+    }
+    Some(Bounds::new(first.0, top, right - first.0 + 1, bottom - top + 1))
+}
+
+/// Read the region name from an open map window.
+pub fn read_region(image: &ImageBuffer, logger: &Logger) -> Option<String> {
+    let bounds = find_region(image)?;
+    let text = ocr::read_name(image, bounds, REGION_COLOR, REGION_TOLERANCE / 2)?;
+    let name = text.trim_matches(|c: char| !c.is_alphanumeric()).to_string();
+    slog::debug!(logger, "Read region"; "ocr" => &text, "bounds" => format!("{:?}", bounds));
+    if name.is_empty() { None } else { Some(name) }
+}
+
+/// Same region, allowing for a misread letter.
+pub fn same_region(a: &str, b: &str) -> bool {
+    let (a, b) = (crate::monster_db::normalize(a), crate::monster_db::normalize(b));
+    if a == b {
+        return true;
+    }
+    let len = a.chars().count().max(b.chars().count());
+    len >= 5 && strsim_distance(&a, &b) <= 1
+}
+
+fn strsim_distance(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for i in 1..=a.len() {
+        let mut cur = vec![i; b.len() + 1];
+        for j in 1..=b.len() {
+            let cost = if a[i - 1] == b[j - 1] { 0 } else { 1 };
+            cur[j] = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+        }
+        prev = cur;
+    }
+    prev[b.len()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,6 +253,47 @@ mod tests {
         img.put_pixel(50, 90, Rgba([204, 255, 204, 255]));
         let b = find_line(&img).unwrap();
         assert_eq!((b.x, b.y, b.h), (10, 60, 8));
+    }
+
+    #[test]
+    fn same_region_tolerates_one_typo() {
+        assert!(same_region("Flaris", "flaris"));
+        assert!(same_region("Flaris", "Fiaris"));
+        assert!(!same_region("Flaris", "Darkon"));
+        assert!(!same_region("Saint Morning", "Flaris"));
+    }
+
+    #[test]
+    fn finds_region_without_arrow() {
+        let mut img = ImageBuffer::from_pixel(800, 600, Rgba([40, 20, 0, 255]));
+        // "word" columns 175..=221 with 2-3px letter gaps, then an arrow at 231..=242
+        for x in (175..=221).filter(|x| (x - 175) % 4 != 3) {
+            for y in 41..54 {
+                img.put_pixel(x, y, Rgba([255, 185, 0, 255]));
+            }
+        }
+        for x in 231..=242 {
+            for y in 42..52 {
+                img.put_pixel(x, y, Rgba([255, 185, 0, 255]));
+            }
+        }
+        let b = find_region(&img).unwrap();
+        assert_eq!((b.x, b.x + b.w - 1, b.y), (175, 221, 41));
+    }
+
+    /// NEUZ_REGION_IMG=map.png (an 800x600 client crop) cargo test region_from_screenshot -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn region_from_screenshot() {
+        let path = std::env::var("NEUZ_REGION_IMG").expect("NEUZ_REGION_IMG");
+        let img = image::open(&path).unwrap().to_rgba8();
+        let b = find_region(&img).expect("no region found");
+        println!("region bounds: {:?}", b);
+        let out = ocr::prepare(&img, b, REGION_COLOR, REGION_TOLERANCE / 2).unwrap();
+        let gray = image::GrayImage::from_fn(out.width, out.height, |x, y| {
+            image::Luma([out.bgra[((y * out.width + x) * 4) as usize]])
+        });
+        gray.save(std::env::var("NEUZ_REGION_OUT").unwrap_or_else(|_| "region.png".into())).unwrap();
     }
 
     /// NEUZ_POS_IMG=shot.png cargo test position::tests::read_from_screenshot -- --ignored --nocapture

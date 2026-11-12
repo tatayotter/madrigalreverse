@@ -81,8 +81,9 @@ pub struct FarmingBehavior<'a> {
     escaped_from_healer_death: bool,
     /// The healer is being hit: only go for aggressive monsters
     protecting_healer: bool,
-    /// Stay in area: where the bot was engaged
+    /// Stay in area: where the bot was engaged, and in which region (from the map)
     home: Option<Position>,
+    home_region: Option<String>,
     last_position: Option<Position>,
     last_area_check: Option<Instant>,
     /// Stay in area gave up (we're far away, probably another map) until the next Engage
@@ -131,6 +132,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             escaped_from_healer_death: false,
             protecting_healer: false,
             home: None,
+            home_region: None,
             last_position: None,
             last_area_check: None,
             area_paused: false,
@@ -146,6 +148,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
     fn interupt(&mut self, _config: &BotConfig) {
         // A new Engage sets a new home
         self.home = None;
+        self.home_region = None;
         self.last_area_check = None;
         self.area_paused = false;
         self.stop(_config);
@@ -380,6 +383,22 @@ impl FarmingBehavior<'_> {
         read
     }
 
+    /// Open the map (M), read the region name from its top bar, close it again.
+    fn read_region(&mut self, image: &mut ImageAnalyzer) -> Option<String> {
+        use crate::movement::prelude::*;
+        play!(self.movement => [
+            PressKey("M"),
+            Wait(dur::Fixed(700)),
+        ]);
+        image.capture_window(self.logger);
+        let region = image.image().and_then(|img| position::read_region(img, self.logger));
+        play!(self.movement => [
+            PressKey("M"),
+            Wait(dur::Fixed(200)),
+        ]);
+        region
+    }
+
     /// Read the position twice if it looks like we jumped far (an OCR digit mistake).
     fn read_position_checked(&mut self, image: &mut ImageAnalyzer) -> Option<Position> {
         const MAX_JUMP: f32 = 400.0;
@@ -417,7 +436,8 @@ impl FarmingBehavior<'_> {
             return true;
         };
         let Some(home) = self.home else {
-            slog::info!(self.logger, "Area home set"; "x" => pos.x, "z" => pos.z, "radius" => config.area_radius());
+            self.home_region = self.read_region(image);
+            slog::info!(self.logger, "Area home set"; "x" => pos.x, "z" => pos.z, "radius" => config.area_radius(), "region" => self.home_region.as_deref().unwrap_or("?"));
             self.home = Some(pos);
             return true;
         };
@@ -432,6 +452,16 @@ impl FarmingBehavior<'_> {
             return true;
         }
         if dist > config.area_radius() {
+            // Coordinates only mean something within the same region
+            if let Some(home_region) = self.home_region.clone() {
+                if let Some(region) = self.read_region(image) {
+                    if !position::same_region(&region, &home_region) {
+                        slog::warn!(self.logger, "In a different region than where the bot was engaged. Stay in area is paused until the next Engage."; "home_region" => home_region, "region" => region);
+                        self.area_paused = true;
+                        return true;
+                    }
+                }
+            }
             slog::info!(self.logger, "Too far from home, walking back"; "distance" => dist);
             self.walk_home(config, image, home, pos);
             self.avoided_bounds.clear();
