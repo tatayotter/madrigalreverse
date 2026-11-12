@@ -54,7 +54,10 @@ impl Default for SlotBar {
 
 impl SlotBar {
     pub fn slots(&self) -> Vec<Slot> {
-        self.slots.unwrap().into_iter().collect::<Vec<_>>()
+        self.slots
+            .unwrap_or([Slot::default(); 10])
+            .into_iter()
+            .collect::<Vec<_>>()
     }
     /// Get the first matching slot index
     pub fn get_slot_index(&self, slot_type: SlotType) -> Option<usize> {
@@ -81,7 +84,6 @@ impl SlotBar {
                     && last_slots_usage[slot_bar_index][*index].is_none()
             })
             .min_by(|x, y| x.1.slot_threshold.cmp(&y.1.slot_threshold))
-            //.choose(rng)
             .map(|(index, _)| (slot_bar_index, index))
     }
 
@@ -285,15 +287,15 @@ impl FarmingConfig {
     }
 
     pub fn obstacle_avoidance_cooldown(&self) -> u128 {
-        self.obstacle_avoidance_cooldown.unwrap_or(5000).into()
+        self.obstacle_avoidance_cooldown.unwrap_or(3000).into()
     }
 
     pub fn obstacle_avoidance_max_try(&self) -> u32 {
-        self.obstacle_avoidance_max_try.unwrap_or(5)
+        self.obstacle_avoidance_max_try.unwrap_or(3)
     }
 
     pub fn min_mobs_name_width(&self) -> u32 {
-        self.min_mobs_name_width.unwrap_or(11)
+        self.min_mobs_name_width.unwrap_or(15)
     }
 
     pub fn max_mobs_name_width(&self) -> u32 {
@@ -301,7 +303,7 @@ impl FarmingConfig {
     }
 
     pub fn min_hp_attack(&self) -> u32 {
-        self.min_hp_attack.unwrap_or(0)
+        self.min_hp_attack.unwrap_or(30)
     }
     pub fn max_aoe_farming(&self) -> u32 {
         self.aoe_farming.unwrap_or(1)
@@ -446,7 +448,7 @@ impl SupportConfig {
     }
 
     pub fn obstacle_avoidance_cooldown(&self) -> u128 {
-        self.obstacle_avoidance_cooldown.unwrap_or(0).into()
+        self.obstacle_avoidance_cooldown.unwrap_or(2000).into()
     }
 
     pub fn slot_bars(&self) -> Vec<SlotBar> {
@@ -604,6 +606,86 @@ impl BotConfig {
             serde_json::from_reader::<_, BotConfig>(&mut file).unwrap_or_default()
         } else {
             Self::default()
+        }
+    }
+}
+
+#[cfg(test)]
+mod default_tests {
+    //! The settings UI fills in missing values from its own `defaultValues` tables.
+    //! These tests make sure the Rust defaults (used before the UI has run, or when a
+    //! field is missing) are the same numbers.
+
+    use super::*;
+
+    /// Read `'key': value,` pairs from a `defaultValues = { ... }` block in a .tsx file.
+    fn ui_defaults(file: &str) -> Vec<(String, String)> {
+        let path = format!("{}/../src/components/behaviors/{file}", env!("CARGO_MANIFEST_DIR"));
+        let src = std::fs::read_to_string(path).unwrap();
+        let start = src.find("defaultValues = {").unwrap();
+        let end = start + src[start..].find("\n    }").unwrap();
+        src[start..end]
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim().trim_end_matches(',');
+                let (key, value) = line.split_once(':')?;
+                Some((key.trim().trim_matches('\'').to_string(), value.trim().to_string()))
+            })
+            .collect()
+    }
+
+    fn farming_value(c: &FarmingConfig, key: &str) -> Option<String> {
+        let colors = |v: [Option<u8>; 3], d: [u8; 3]| {
+            format!("[{}, {}, {}]", v[0].unwrap_or(d[0]), v[1].unwrap_or(d[1]), v[2].unwrap_or(d[2]))
+        };
+        Some(match key {
+            // Colors are defaulted in image_analyzer.rs
+            "passive_mobs_colors" => colors(c.passive_mobs_colors(), [234, 234, 149]),
+            "aggressive_mobs_colors" => colors(c.aggressive_mobs_colors(), [179, 23, 23]),
+            "passive_tolerence" => c.passive_tolerence().to_string(),
+            "aggressive_tolerence" => c.aggressive_tolerence().to_string(),
+            "obstacle_avoidance_cooldown" => c.obstacle_avoidance_cooldown().to_string(),
+            "obstacle_avoidance_max_try" => c.obstacle_avoidance_max_try().to_string(),
+            "min_mobs_name_width" => c.min_mobs_name_width().to_string(),
+            "max_mobs_name_width" => c.max_mobs_name_width().to_string(),
+            "circle_pattern_rotation_duration" => c.circle_pattern_rotation_duration().to_string(),
+            "min_hp_attack" => c.min_hp_attack().to_string(),
+            "prevent_already_attacked" => c.prevent_already_attacked().to_string(),
+            "prioritize_aggro" => c.prioritize_aggro().to_string(),
+            "interval_between_buffs" => c.interval_between_buffs().to_string(),
+            "aoe_farming" => c.max_aoe_farming().to_string(),
+            _ => return None,
+        })
+    }
+
+    fn support_value(c: &SupportConfig, key: &str) -> Option<String> {
+        Some(match key {
+            "obstacle_avoidance_cooldown" => c.obstacle_avoidance_cooldown().to_string(),
+            "interval_between_buffs" => c.interval_between_buffs().to_string(),
+            "max_main_distance" => c.get_max_main_distance().to_string(),
+            _ => return None,
+        })
+    }
+
+    #[test]
+    fn farming_defaults_match_ui() {
+        let config = FarmingConfig::default();
+        let defaults = ui_defaults("FarmingConfig.tsx");
+        assert!(defaults.len() > 10);
+        for (key, ui) in defaults {
+            let rust = farming_value(&config, &key).unwrap_or_else(|| panic!("no Rust default for {key}"));
+            assert_eq!(rust, ui, "farming default for {key}");
+        }
+    }
+
+    #[test]
+    fn support_defaults_match_ui() {
+        let config = SupportConfig::default();
+        let defaults = ui_defaults("SupportConfig.tsx");
+        assert!(!defaults.is_empty());
+        for (key, ui) in defaults {
+            let rust = support_value(&config, &key).unwrap_or_else(|| panic!("no Rust default for {key}"));
+            assert_eq!(rust, ui, "support default for {key}");
         }
     }
 }

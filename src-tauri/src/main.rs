@@ -44,16 +44,7 @@ fn main() {
         .package.version.clone()
         .unwrap_or_else(|| "unknown".to_string());
 
-    // Setup logging
-    let sentry_options = sentry::ClientOptions {
-        release: Some(std::borrow::Cow::from(format!("v{}", neuz_version))),
-        server_name: Some(std::borrow::Cow::from(format!("neuz v{}", neuz_version))),
-        ..Default::default()
-    };
-    let _sentry = sentry::init((
-        "https://ce726b0d4b634de8a44ab5564bc924fe@o1322474.ingest.sentry.io/6579555",
-        sentry_options,
-    ));
+    // Setup logging (local only: terminal + log file)
     let drain = {
         let decorator = slog_term::TermDecorator::new().stdout().build();
         let drain = slog_term::CompactFormat
@@ -73,9 +64,9 @@ fn main() {
     let logger = match file_drain {
         Some(file_drain) => {
             let both = slog::Duplicate::new(drain, file_drain).fuse();
-            Logger::root(sentry_slog::SentryDrain::new(both).fuse(), slog::o!())
+            Logger::root(both, slog::o!())
         }
-        None => Logger::root(sentry_slog::SentryDrain::new(drain).fuse(), slog::o!()),
+        None => Logger::root(drain, slog::o!()),
     };
     log_file::install_panic_hook();
     slog::info!(logger, "Neuz started"; "version" => &neuz_version);
@@ -83,7 +74,6 @@ fn main() {
     // Build app
     tauri::Builder
         ::default()
-        // .menu(tauri::Menu::os_default(&context.package_info().name))
         .manage(AppState { logger, version: neuz_version.clone() })
         .invoke_handler(
             tauri::generate_handler![
@@ -337,26 +327,17 @@ async fn create_window(profile_id: String, app_handle: tauri::AppHandle) {
             tauri::WindowUrl::External("https://universe.flyff.com/play".parse().unwrap())
         )
         .data_directory(
-            PathBuf::from(
-                format!(
-                    r"{}\profile_{}",
-                    app_handle.path_resolver().app_data_dir().unwrap().to_string_lossy(),
-                    profile_id
-                )
-            )
+            PathBuf::from(config_folder_path(&app_handle, &profile_id))
         )
-        //.resizable(false)
         .center()
         .inner_size(800.0, 600.0)
         .title(format!("{} | Flyff Universe", profile_id))
         .build()
         .unwrap();
     drop(window.show());
-    // window.open_devtools();
 
     let main_window = app_handle.get_window("main").unwrap();
     drop(main_window.set_title(format!("{} Neuz | MadrigalStreetCartel", profile_id).as_str()));
-    //window.once_global("tauri://close-requested", move |_| app_handle.restart());
 }
 
 fn should_disconnect_on_death(config: &BotConfig) -> bool {
@@ -370,11 +351,7 @@ fn should_disconnect_on_death(config: &BotConfig) -> bool {
 #[tauri::command]
 fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: tauri::AppHandle) {
     let logger = state.logger.clone();
-    let config_path = format!(
-        r"{}\.botconfig_{}",
-        app_handle.path_resolver().app_data_dir().unwrap().to_string_lossy(),
-        profile_id
-    ).clone();
+    let config_path = config_file_path(&app_handle, &profile_id);
 
     if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
         duo::init(app_data_dir.clone());
@@ -462,13 +439,7 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
 
             // Send changed config to frontend if needed
             if last_config_change_id == 0 || config.change_id() > last_config_change_id {
-                config.serialize(
-                    format!(
-                        r"{}\.botconfig_{}",
-                        app_handle.path_resolver().app_data_dir().unwrap().to_string_lossy(),
-                        profile_id
-                    ).clone()
-                );
+                config.serialize(config_file_path(&app_handle, &profile_id));
                 send_config(config);
                 last_config_change_id = config.change_id();
 

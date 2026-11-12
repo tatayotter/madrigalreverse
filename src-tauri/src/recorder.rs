@@ -65,10 +65,6 @@ pub fn stop() {
     *ACTIVE.lock() = None;
 }
 
-pub fn is_recording() -> bool {
-    ACTIVE.lock().is_some()
-}
-
 /// Local date-time like `2026-11-13_00-31-05`, without pulling in a date crate.
 fn chrono_like_now() -> String {
     let secs = std::time::SystemTime::now()

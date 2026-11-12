@@ -111,13 +111,6 @@ impl ClientStats {
         } else {
             self.target_distance = None;
         }
-
-        //        slog::debug!(_logger, "Stats detection"; "HP" => self.hp.value, "MP" => self.mp.value, "FP" => self.fp.value, "Enemy HP" => self.target_hp.value, "Character is" => self.is_alive(), "Enemy is NPC" => self.target_is_npc, "Enemy is Mover" => self.target_is_mover, "Enemy is alive" => self.target_is_alive, "Enemy on screen" => self.target_on_screen, "Enemy distance" => self.target_distance.unwrap_or(-1));
-
-        // Debug is deactivated
-        /*if should_debug.contains(&true) {
-            self.debug_print(_logger);
-        }*/
     }
 
     // Detect whether we can read or not stat_tray and open it if needed

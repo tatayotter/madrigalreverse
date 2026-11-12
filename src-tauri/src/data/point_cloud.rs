@@ -151,8 +151,15 @@ mod tests {
         let cloud = PointCloud::new(points);
         let clusters = cloud.cluster_by_distance(distance, point_selector::x_axis);
         assert_eq!(clusters.len(), 2);
-        assert_eq!(clusters[0], PointCloud::from([(0, 0), (5, 1), (9, 1)]));
-        assert_eq!(clusters[1], PointCloud::from([(15, 5), (17, 3)]));
+        // Iterating a PointCloud pops from the end, so clusters (and the points in them)
+        // come out from largest to smallest x. Compare by bounds so order doesn't matter.
+        let mut bounds: Vec<(u32, u32, u32, u32)> = clusters
+            .iter()
+            .map(|c| c.to_bounds())
+            .map(|b| (b.x, b.y, b.w, b.h))
+            .collect();
+        bounds.sort();
+        assert_eq!(bounds, vec![(0, 0, 9, 1), (15, 3, 2, 2)]);
     }
 
     #[test]

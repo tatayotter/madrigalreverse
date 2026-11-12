@@ -7,6 +7,10 @@ Date format: `DD/MM/YYYY`
 <!-- /maintainers -->
 
 **Unreleased (fork)**
+- Cleanup
+    - Removed Sentry crash reporting (it sent reports to the original authors); logs stay local
+    - Rust defaults now match the settings UI (obstacle avoidance 3000ms / 3 tries, min name width 15, min HP to attack 30, support obstacle cooldown 2000ms), with a test that keeps them in sync
+    - Fixed crash risks (target HP timer, missing slot bars), removed dead and commented-out code, fixed compiler warnings
 - Debug
     - Screenshot recorder (Farming Settings): saves frames + detection results to the recordings folder for offline testing
     - Copy logs / Log folder buttons, log file with crash backtraces

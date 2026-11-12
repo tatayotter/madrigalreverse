@@ -49,7 +49,6 @@ pub struct FarmingBehavior<'a> {
     state: State,
     slots_usage_last_time: [[Option<Instant>; 10]; 9],
     last_initial_attack_time: Instant,
-    //searching_for_enemy_timeout: Instant,
     last_kill_time: Instant,
     avoided_bounds: Vec<(Bounds, Instant, u128)>,
     rotation_movement_tries: u32,
@@ -119,7 +118,6 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
     fn start(&mut self, _config: &BotConfig) {}
     fn update(&mut self, _config: &BotConfig) {}
     fn stop(&mut self, _config: &BotConfig) {
-        //self.slots_usage_last_time = [[None; 10]; 9];
     }
 
     fn interupt(&mut self, _config: &BotConfig) {
@@ -356,12 +354,9 @@ impl FarmingBehavior<'_> {
     fn wait_cooldown(&mut self) -> bool {
         if self.wait_duration.is_some() {
             if self.wait_start.elapsed() < self.wait_duration.unwrap() {
-                //let remaining = self.wait_duration.unwrap() - self.wait_start.elapsed();
-                //slog::debug!(self.logger, "Waiting for {:?} Remaining {:?}", self.wait_duration.unwrap(), remaining);
                 return true;
             } else {
                 self.wait_duration = None;
-                //slog::debug!(self.logger, "Wait time finished");
             }
         }
         return false;
@@ -420,16 +415,13 @@ impl FarmingBehavior<'_> {
     fn update_slots_usage(&mut self, config: &FarmingConfig) {
         for (slotbar_index, slot_bars) in self.slots_usage_last_time.into_iter().enumerate() {
             for (slot_index, last_time) in slot_bars.into_iter().enumerate() {
-                let cooldown = config
+                let cooldown = u128::from(config
                     .get_slot_cooldown(slotbar_index, slot_index)
-                    .unwrap_or(100)
-                    .try_into();
+                    .unwrap_or(100));
                 if let Some(last_time) = last_time {
-                    if let Ok(cooldown) = cooldown {
-                        let slot_last_time = last_time.elapsed().as_millis();
-                        if slot_last_time > cooldown {
-                            self.slots_usage_last_time[slotbar_index][slot_index] = None;
-                        }
+                    let slot_last_time = last_time.elapsed().as_millis();
+                    if slot_last_time > cooldown {
+                        self.slots_usage_last_time[slotbar_index][slot_index] = None;
                     }
                 }
             }
@@ -451,7 +443,6 @@ impl FarmingBehavior<'_> {
             )
         {
             if send {
-                //slog::debug!(self.logger, "Slot usage"; "slot_type" => slot_type.to_string(), "value" => threshold);
                 self.send_slot(slot_index);
             }
 
@@ -475,7 +466,7 @@ impl FarmingBehavior<'_> {
                 send_slot_eval(self.window, index.0, index.1);
                 self.last_summon_pet_time = Some(Instant::now());
             } else {
-                // if pet is already out, just reset it's timer
+                // if pet is already out, just reset its timer
                 self.last_summon_pet_time = Some(Instant::now());
             }
         } else {
@@ -615,9 +606,8 @@ impl FarmingBehavior<'_> {
                 State::NoEnemyFound
             } else {
                 self.rotation_movement_tries = 0;
-                //slog::debug!(self.logger, "Found mobs"; "mob_type" => mob_type, "mob_count" => mob_list.len());
                 if
-                    let Some(mob) = ({
+                    let Some(mob) = {
                         // Try avoiding detection of last killed mob
                         if self.avoided_bounds.is_empty() {
                             image.find_closest_mob(
@@ -634,7 +624,7 @@ impl FarmingBehavior<'_> {
                                 self.logger
                             )
                         }
-                    })
+                    } 
                 {
                     if !self.name_allows_attack(config, image, mob) {
                         // Skip this one for a few seconds and look for another
@@ -710,7 +700,6 @@ impl FarmingBehavior<'_> {
 
         // Wait a few ms before transitioning state
         std::thread::sleep(Duration::from_millis(150));
-        //self.wait(Duration::from_millis(150));
         self.is_attacking = false;
         State::VerifyTarget(mob)
     }
@@ -813,25 +802,10 @@ impl FarmingBehavior<'_> {
         mob: Target,
         image: &mut ImageAnalyzer
     ) -> State {
-        //self.check_restorations(config, image);
 
         if !self.is_attacking {
             self.rotation_movement_tries = 0;
 
-            // Detect if mob was attacked
-            /* if image.client_stats.target_hp.value < 100 && config.prevent_already_attacked() {
-                // TODO maybe remove this
-                let hp_last_update = image.client_stats.hp.last_update_time.unwrap();
-                // // If we didn't took any damages abort attack
-                // reducing to 500ms the time to check the last time the mob was attacked, 5s is too long.
-                if hp_last_update.elapsed().as_millis() > 500 {
-                    return self.abort_attack(image);
-                } else if self.stealed_target_count > 5 {
-                    self.stealed_target_count = 0;
-                    self.already_attack_count = 1;
-                    return self.state;
-                }
-            } else { */
             // engaging the mob
             self.obstacle_avoidance_count = 0;
             self.last_initial_attack_time = Instant::now();
@@ -842,16 +816,13 @@ impl FarmingBehavior<'_> {
 
         if image.client_stats.target_on_screen || image.client_stats.target_is_alive {
             let last_target_hp_update = image.client_stats.target_hp.last_update_time
-                .unwrap()
-                .elapsed()
-                .as_millis();
+                .map_or(0, |t| t.elapsed().as_millis());
 
             // Obstacle avoidance
             if
                 !image.client_stats.target_on_screen ||
                 last_target_hp_update > config.obstacle_avoidance_cooldown()
             {
-                //slog::debug!(self.logger, "Obstacle avoidance"; "target_on_screen" => image.client_stats.target_on_screen, "last_target_hp_update" => last_target_hp_update, "obstacle_avoidance_cooldown" => config.obstacle_avoidance_cooldown());
                 if image.client_stats.target_hp.value == 100 {
                     if self.avoid_obstacle(image, 2) {
                         return State::SearchingForEnemy;
@@ -863,7 +834,6 @@ impl FarmingBehavior<'_> {
             self.get_slot_for(config, None, SlotType::AttackSkill, true);
 
             if config.max_aoe_farming() > 1 {
-                // slog::debug!(self.logger, "on attacking: "; "self.concurrent_mobs_under_attack" => self.concurrent_mobs_under_attack, );
 
                 //arbitrary checking we lower less than 70
                 if self.concurrent_mobs_under_attack < config.max_aoe_farming() {
@@ -876,7 +846,6 @@ impl FarmingBehavior<'_> {
             }
 
             if let Some(target_distance) = image.client_stats.target_distance {
-                // slog::debug!(self.logger,"checking distance"; "market_distance" => marker_distance);
                 if target_distance < MAX_DISTANCE_FOR_AOE {
                     self.get_slot_for(config, None, SlotType::AOEAttackSkill, true);
                 }
