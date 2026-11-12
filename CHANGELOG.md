@@ -11,6 +11,8 @@ Date format: `DD/MM/YYYY`
     - Removed Sentry crash reporting (it sent reports to the original authors); logs stay local
     - Rust defaults now match the settings UI (obstacle avoidance 3000ms / 3 tries, min name width 15, min HP to attack 30, support obstacle cooldown 2000ms), with a test that keeps them in sync
     - Fixed crash risks (target HP timer, missing slot bars), removed dead and commented-out code, fixed compiler warnings
+- Targeting
+    - Clicking a monster tries up to 4 spots down from the name tag until the attack cursor shows, so bigger monsters (Captains) get selected instead of missed
 - Monster names
     - Name reading keeps the soft edges of the letters and enlarges them smoothly, so Windows OCR can read the tiny name font (it returned nothing before)
 - Debug

@@ -25,7 +25,7 @@ function after(duration = 0, callback) {
 }
 
 let checkMobTimeout = null;
-function mouseEvent(type, x, y, { checkMob = false, delay = 50, duration } = {}) {
+function mouseEvent(type, x, y, { checkMob = false, delay = 35, duration } = {}) {
     if (checkMobTimeout) {
 
         clearTimeout(checkMobTimeout)
@@ -59,19 +59,26 @@ function mouseEvent(type, x, y, { checkMob = false, delay = 50, duration } = {})
             dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: y }))
 
             if (checkMob) {
-                checkMobTimeout = setTimeout(() => {
-                    if (isMob()) {
-                        dispatchEvent(new MouseEvent('mousedown', { clientX: x, clientY: y }))
-                        dispatchEvent(new MouseEvent('mouseup', { clientX: x, clientY: y }))
-                        /* after(50, () => {
-                            dispatchEvent(new MouseEvent('mousemove', { clientX: 0, clientY: 0 }))
-                        }) */
-                        addTargetMarker('green', x, y)
-                    } else {
-                        //dispatchEvent(new MouseEvent('mousemove', { clientX: 0, clientY: 0 }))
-                        addTargetMarker('red', x, y)
-                    }
-                }, delay)
+                // The name tag sits above the monster; bigger monsters' bodies start
+                // lower. Probe a few spots downwards and click the first one where
+                // the game shows the attack cursor.
+                const offsets = [0, 14, 28, 42]
+                const probe = (i) => {
+                    const py = y + offsets[i]
+                    dispatchEvent(new MouseEvent('mousemove', { clientX: x, clientY: py }))
+                    checkMobTimeout = setTimeout(() => {
+                        if (isMob()) {
+                            dispatchEvent(new MouseEvent('mousedown', { clientX: x, clientY: py }))
+                            dispatchEvent(new MouseEvent('mouseup', { clientX: x, clientY: py }))
+                            addTargetMarker('green', x, py)
+                        } else if (i + 1 < offsets.length) {
+                            probe(i + 1)
+                        } else {
+                            addTargetMarker('red', x, py)
+                        }
+                    }, delay)
+                }
+                probe(0)
             } else if (!checkMob) {
                 addTargetMarker('blue', x, y)
                 dispatchEvent(new MouseEvent('mousedown', { clientX: x, clientY: y }))
