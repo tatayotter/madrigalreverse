@@ -17,6 +17,7 @@ import YesNoModal from '../YesNoModal'
 import { MsFormat, StopWatchValues } from '../utils/StopWatch'
 import { DefaultValuesChecker } from '../utils/DefaultValuesChecker'
 import TimeInput from '../config/TimeInput'
+import TextInput from '../config/TextInput'
 
 type Props = {
     className?: string,
@@ -38,6 +39,8 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     const mobsColorsDebugModal = useModal(mobsNameDebugModal)
     const resetSlotYesNo = useModal(debugModal)
     const obstacleAvoidanceDebugModal = useModal(debugModal)
+    const fleeModal = useModal(debugModal)
+    const discordModal = useModal(debugModal)
 
     const selectedMobType = useRef(0)
 
@@ -97,6 +100,14 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         item={<button onClick={obstacleAvoidanceDebugModal.open}>⚙️</button>}
                     />
                     <ConfigTableRow
+                        label={<ConfigLabel name="Giant & violet flee" helpText="Run away when a violet or giant gets close" />}
+                        item={<button onClick={fleeModal.open}>⚙️</button>}
+                    />
+                    <ConfigTableRow
+                        label={<ConfigLabel name="Discord alerts" helpText="Get a Discord message on death, danger or disconnect" />}
+                        item={<button onClick={discordModal.open}>⚙️</button>}
+                    />
+                    <ConfigTableRow
                         label={<ConfigLabel name="On death event" helpText="" />}
                         item={<button onClick={onDeathModal.open}>⚙️</button>}
                     />
@@ -138,7 +149,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                 <ConfigTable>
                     <ConfigTableRow
                         layout="v"
-                        label={<ConfigLabel name="Avoid attacked monster" helpText="Check whether a mob is already attacked and avoid it if so. Must be disabled if you play in party" />}
+                        label={<ConfigLabel name="Avoid attacked monster" helpText="Anti-killsteal: skip monsters that are already hurt when you target them, unless something is hitting you. Disable when you play in a party" />}
                         item={<BooleanSlider value={config.prevent_already_attacked ?? true} onChange={value => onChange?.({ ...config, prevent_already_attacked: value })} />}
                     />
                     <ConfigTableRow
@@ -150,6 +161,59 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         layout="v"
                         label={<ConfigLabel name="Obstacle avoidance max try" helpText="After this number of try it'll abort attack and search for another target" />}
                         item={<NumericInput unit='#' value={config.obstacle_avoidance_max_try} onChange={value => onChange({...config, obstacle_avoidance_max_try: value})} />}
+                    />
+                </ConfigTable>
+            }/>
+            <Modal isShowing={fleeModal.isShown} hide={fleeModal.close} title={<h4>Giant & violet flee</h4>} body={
+                <ConfigTable>
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Enabled" helpText="When a violet (or giant, if a color is set below) is close, drop the target, turn away and run" />}
+                        item={<BooleanSlider value={config.giant_flee ?? false} onChange={value => onChange?.({ ...config, giant_flee: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Flee radius" helpText="Distance from your character (in screen pixels) at which the bot runs away. Default: 250" />}
+                        item={<NumericInput unit='px' value={config.flee_radius ?? 250} onChange={value => onChange({...config, flee_radius: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Giant name color" helpText="Optional. Name color of giants to flee from. Leave empty to only flee from violets." />}
+                        item={<ColorSelector value={config.giant_mobs_colors ?? []} onChange={value => onChange?.({ ...config, giant_mobs_colors: [value[0], value[1], value[2]] })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Giant color tolerence" helpText="How close a pixel must be to the giant color. Default: 10" />}
+                        item={<NumericInput min={0} max={255} unit="#" value={config.giant_tolerence ?? 10} onChange={value => onChange?.({ ...config, giant_tolerence: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="" helpText="" />}
+                        item={<button onClick={() => onChange?.({ ...config, giant_mobs_colors: undefined })}>Clear giant color</button>}
+                    />
+                </ConfigTable>
+            }/>
+            <Modal isShowing={discordModal.isShown} hide={discordModal.close} title={<h4>Discord alerts</h4>} body={
+                <ConfigTable>
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Webhook URL" helpText="Discord channel > Edit channel > Integrations > Webhooks > New webhook > Copy URL. Leave empty to turn alerts off." />}
+                        item={<TextInput value={config.discord_webhook_url} onChange={value => onChange({...config, discord_webhook_url: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="On death" helpText="" />}
+                        item={<BooleanSlider value={config.discord_notify_death ?? true} onChange={value => onChange?.({ ...config, discord_notify_death: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="On giant / violet nearby" helpText="At most one message per minute" />}
+                        item={<BooleanSlider value={config.discord_notify_danger ?? true} onChange={value => onChange?.({ ...config, discord_notify_danger: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="On disconnect" helpText="When the bot disconnects because of death, AFK or no monsters found" />}
+                        item={<BooleanSlider value={config.discord_notify_disconnect ?? true} onChange={value => onChange?.({ ...config, discord_notify_disconnect: value })} />}
                     />
                 </ConfigTable>
             }/>

@@ -5,6 +5,7 @@ pub enum MobType {
     Passive,
     Aggressive,
     Violet,
+    Giant,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]

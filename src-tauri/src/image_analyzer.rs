@@ -279,6 +279,87 @@ impl ImageAnalyzer {
         Vec::from_iter(mobs_agg.into_iter().chain(mobs_pas))
     }
 
+    /// Find violets (and giants, when a giant name color is configured) that are within
+    /// `radius` pixels of the screen center. Returns the closest one and its horizontal
+    /// offset from the center (negative = left of the player).
+    pub fn find_danger_near(&self, config: &FarmingConfig, radius: i32) -> Option<(Target, i32)> {
+        let _timer = Timer::start_new("find_danger_near");
+        let image = self.image.as_ref()?;
+
+        let violet_wrapped = config.violet_mobs_colors();
+        let ref_violet: [u8; 3] = [
+            violet_wrapped[0].unwrap_or(182),
+            violet_wrapped[1].unwrap_or(144),
+            violet_wrapped[2].unwrap_or(146),
+        ];
+        let violet_tolerance = config.violet_tolerence();
+        let giant = config.giant_mobs_colors();
+        let giant_tolerance = config.giant_tolerence();
+
+        let (snd, recv) = sync_channel::<(u32, u32, MobType)>(4096);
+        image
+            .enumerate_rows()
+            .par_bridge()
+            .for_each(move |(y, row)| {
+                #[allow(clippy::absurd_extreme_comparisons)]
+                if y <= IGNORE_AREA_TOP || y > image.height() - IGNORE_AREA_BOTTOM {
+                    return;
+                }
+                for (x, _, px) in row {
+                    if px.0[3] != 255 {
+                        return;
+                    } else if x <= 250 && y <= 110 {
+                        continue;
+                    }
+                    if Self::pixel_matches(&px.0, &ref_violet, violet_tolerance) {
+                        drop(snd.send((x, y, MobType::Violet)));
+                    } else if let Some(giant) = giant {
+                        if Self::pixel_matches(&px.0, &giant, giant_tolerance) {
+                            drop(snd.send((x, y, MobType::Giant)));
+                        }
+                    }
+                }
+            });
+
+        let mut violet_coords = Vec::default();
+        let mut giant_coords = Vec::default();
+        while let Ok((x, y, kind)) = recv.recv() {
+            match kind {
+                MobType::Giant => giant_coords.push(Point::new(x, y)),
+                _ => violet_coords.push(Point::new(x, y)),
+            }
+        }
+
+        // No max width filter here: big name clusters are exactly what we want to flee from.
+        let min_width = config.min_mobs_name_width();
+        let dangers = Self::merge_cloud_into_mobs(
+            None,
+            &PointCloud::new(violet_coords),
+            TargetType::Mob(MobType::Violet),
+        )
+        .into_iter()
+        .chain(Self::merge_cloud_into_mobs(
+            None,
+            &PointCloud::new(giant_coords),
+            TargetType::Mob(MobType::Giant),
+        ))
+        .filter(|mob| mob.bounds.w > min_width);
+
+        let mid_x = (image.width() / 2) as i32;
+        let mid_y = (image.height() / 2) as i32;
+        dangers
+            .map(|mob| {
+                let point = mob.get_attack_coords();
+                let dx = point.x as i32 - mid_x;
+                let dy = point.y as i32 - mid_y;
+                let distance = ((dx.pow(2) + dy.pow(2)) as f64).sqrt() as i32;
+                (mob, dx, distance)
+            })
+            .filter(|&(_, _, distance)| distance <= radius)
+            .min_by_key(|&(_, _, distance)| distance)
+            .map(|(mob, dx, _)| (mob, dx))
+    }
+
     pub fn identify_target_marker(&self, blue_target: bool) -> Option<Target> {
         let _timer = Timer::start_new("identify_target_marker");
         let mut coords = Vec::default();
