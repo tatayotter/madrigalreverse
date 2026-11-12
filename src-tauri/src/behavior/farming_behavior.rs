@@ -356,13 +356,13 @@ impl FarmingBehavior<'_> {
         }
     }
 
-    /// Type /coordinates and read the reply from the chat box.
+    /// Type /position and read the reply from the chat box.
     fn read_position(&mut self, image: &mut ImageAnalyzer) -> Option<Position> {
         use crate::movement::prelude::*;
         play!(self.movement => [
             PressKey("Enter"),
             Wait(dur::Fixed(150)),
-            Type("/coordinates".to_string()),
+            Type("/position".to_string()),
             Wait(dur::Fixed(100)),
             PressKey("Enter"),
             Wait(dur::Fixed(450)),

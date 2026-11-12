@@ -204,12 +204,12 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                 <ConfigTable>
                     <ConfigTableRow
                         layout="v"
-                        label={<ConfigLabel name="Enabled" helpText="Remembers where you pressed Engage. Between fights it types /coordinates now and then, and walks back if you are farther away than the radius. The chat box must be visible." />}
+                        label={<ConfigLabel name="Enabled" helpText="Remembers where you pressed Engage. Between fights it types /position now and then, and walks back if you are farther away than the radius. The chat box must be visible." />}
                         item={<BooleanSlider value={config.stay_in_area ?? false} onChange={value => onChange?.({ ...config, stay_in_area: value })} />}
                     />
                     <ConfigTableRow
                         layout="v"
-                        label={<ConfigLabel name="Radius" helpText="How far you may go from the starting point, in game units (the numbers /coordinates shows). Default: 50" />}
+                        label={<ConfigLabel name="Radius" helpText="How far you may go from the starting point, in game units (the numbers /position shows). Default: 50" />}
                         item={<NumericInput unit='#' value={config.area_radius ?? 50} onChange={value => onChange({...config, area_radius: value})} />}
                     />
                     <ConfigTableRow

@@ -208,7 +208,7 @@ pub struct FarmingConfig {
 
     /// Walk back when farther than `area_radius` from where the bot was engaged
     stay_in_area: Option<bool>,
-    /// In game units, as shown by /coordinates
+    /// In game units, as shown by /position
     area_radius: Option<u32>,
     /// Seconds between position checks
     area_check_interval: Option<u32>,

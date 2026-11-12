@@ -12,7 +12,7 @@ Date format: `DD/MM/YYYY`
     - Rust defaults now match the settings UI (obstacle avoidance 3000ms / 3 tries, min name width 15, min HP to attack 30, support obstacle cooldown 2000ms), with a test that keeps them in sync
     - Fixed crash risks (target HP timer, missing slot bars), removed dead and commented-out code, fixed compiler warnings
 - Positioning
-    - Reads the character position by typing /coordinates and reading the green reply in the chat box
+    - Reads the character position by typing /position and reading the green reply in the chat box
     - Stay in area (Farming settings): remembers where you pressed Engage and, between fights, walks back when farther than the radius. It learns turn speed and direction from its own movement
 - Targeting
     - Clicking a monster tries up to 4 spots down from the name tag until the attack cursor shows, so bigger monsters (Captains) get selected instead of missed

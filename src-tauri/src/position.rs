@@ -1,6 +1,6 @@
 //! Reads the character's world position.
 //!
-//! Typing `/coordinates` in chat makes the game print a green line in the chat box:
+//! Typing `/position` in chat makes the game print a green line in the chat box:
 //! `Position: x = 7174.688477, y = 97.326149, z = 3514.464844, angle = 171.298828`.
 //! The bot types the command, finds that line on screen and reads it with OCR.
 //! `x` and `z` are the ground plane; `y` is height.
@@ -154,7 +154,7 @@ mod tests {
         assert_eq!(p.x, 7174.688477);
         assert_eq!(p.z, 3504.5);
         assert_eq!(p.angle, Some(-12.5));
-        assert!(parse("Hackern00b : /coordinates").is_none());
+        assert!(parse("Hackern00b : /position").is_none());
         // Separators read as "." and junk characters
         let p = parse("Position: x = 7174.686477. y = $7.326149. z = 3514.464644. angle = 171.298828").unwrap();
         assert_eq!((p.x, p.y, p.z), (7174.686477, 7.326149, 3514.464644));
