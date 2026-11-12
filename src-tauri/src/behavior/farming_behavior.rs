@@ -10,6 +10,7 @@ use crate::{
     image_analyzer::ImageAnalyzer,
     ipc::{ BotConfig, FarmingConfig, FrontendInfo, SlotType },
     movement::MovementAccessor,
+    monster_db::{ monster_db, normalize },
     notifications::{ send_discord, send_discord_blocking },
     platform::{ eval_mob_click, send_slot_eval },
     play,
@@ -23,6 +24,10 @@ const FLEE_COOLDOWN_MS: u128 = 2500;
 const DANGER_ALERT_COOLDOWN_MS: u128 = 60_000;
 /// If our HP dropped within this window, we treat ourselves as under attack.
 const UNDER_ATTACK_WINDOW_MS: u128 = 2000;
+/// Minimum time between two name-reading danger scans (OCR is slow-ish).
+const NAME_SCAN_COOLDOWN_MS: u128 = 1000;
+/// How many nearby mobs to read names of per danger scan.
+const NAME_SCAN_MAX_MOBS: usize = 3;
 
 #[derive(Debug, Clone, Copy)]
 enum State {
@@ -63,6 +68,7 @@ pub struct FarmingBehavior<'a> {
     last_danger_alert: Option<Instant>,
     last_hp_seen: u32,
     last_hp_drop_time: Option<Instant>,
+    last_name_scan: Option<Instant>,
 }
 
 impl<'a> Behavior<'a> for FarmingBehavior<'a> {
@@ -98,6 +104,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             last_danger_alert: None,
             last_hp_seen: 0,
             last_hp_drop_time: None,
+            last_name_scan: None,
         }
     }
 
@@ -188,17 +195,13 @@ impl FarmingBehavior<'_> {
                 return false;
             }
         }
-        let (danger, dx) = match image.find_danger_near(config, config.flee_radius()) {
+        let (kind, dx) = match self.find_danger(config, image) {
             Some(found) => found,
             None => {
                 return false;
             }
         };
-
-        let kind = match danger.target_type {
-            TargetType::Mob(MobType::Giant) => "giant",
-            _ => "violet",
-        };
+        let kind = kind.as_str();
         slog::info!(self.logger, "Fleeing from dangerous mob"; "kind" => kind, "dx" => dx);
 
         if
@@ -228,6 +231,74 @@ impl FarmingBehavior<'_> {
         self.state = State::SearchingForEnemy;
         self.last_flee_time = Some(Instant::now());
         true
+    }
+
+    /// Look for a dangerous mob near the player: first by name color (violets, configured
+    /// giant color), then, if name reading is on, by reading the names of the closest mobs.
+    /// Returns a description of what was found and its horizontal offset from the center.
+    fn find_danger(&mut self, config: &FarmingConfig, image: &ImageAnalyzer) -> Option<(String, i32)> {
+        let radius = config.flee_radius();
+        if let Some((danger, dx)) = image.find_danger_near(config, radius) {
+            let kind = match danger.target_type {
+                TargetType::Mob(MobType::Giant) => "giant",
+                _ => "violet",
+            };
+            return Some((kind.to_string(), dx));
+        }
+
+        if !config.name_reading() {
+            return None;
+        }
+        if self.last_name_scan.map_or(false, |t| t.elapsed().as_millis() < NAME_SCAN_COOLDOWN_MS) {
+            return None;
+        }
+        self.last_name_scan = Some(Instant::now());
+        let db = monster_db();
+        if db.is_empty() {
+            return None;
+        }
+        let mobs = image.identify_mobs(config);
+        for mob in image.mobs_within(&mobs, radius).into_iter().take(NAME_SCAN_MAX_MOBS) {
+            if let Some(info) = image.read_mob_name(config, &mob).and_then(|text| db.lookup(&text)) {
+                if info.rank.is_dangerous() {
+                    return Some((format!("{:?} ({})", info.rank, info.name).to_lowercase(), image.offset_x(&mob)));
+                }
+            }
+        }
+        None
+    }
+
+    /// With name reading on, decide whether a mob may be attacked based on its name:
+    /// never giants/violets/bosses, never blacklisted names, and only whitelisted names
+    /// when a whitelist is set.
+    fn name_allows_attack(&self, config: &FarmingConfig, image: &ImageAnalyzer, mob: &Target) -> bool {
+        if !config.name_reading() {
+            return true;
+        }
+        let whitelist = config.monster_whitelist();
+        let blacklist = config.monster_blacklist();
+        let text = image.read_mob_name(config, mob);
+        let db = monster_db();
+        let info = text.as_deref().and_then(|t| db.lookup(t));
+
+        // Prefer the clean name from the monster list over the raw OCR text.
+        let name = match (&info, &text) {
+            (Some(info), _) => Some(normalize(&info.name)),
+            (None, Some(text)) => Some(normalize(text)),
+            (None, None) => None,
+        };
+        slog::debug!(self.logger, "Read mob name"; "ocr" => text.as_deref().unwrap_or("-"), "match" => info.map_or("-", |i| i.name.as_str()));
+
+        if info.map_or(false, |i| i.rank.is_dangerous()) {
+            return false;
+        }
+        match name {
+            Some(name) => {
+                !blacklist.contains(&name) && (whitelist.is_empty() || whitelist.contains(&name))
+            }
+            // Couldn't read the name: only attack if we aren't restricted to a list.
+            None => whitelist.is_empty(),
+        }
     }
 
     fn wait_cooldown(&mut self) -> bool {
@@ -519,6 +590,11 @@ impl FarmingBehavior<'_> {
                         }
                     })
                 {
+                    if !self.name_allows_attack(config, image, mob) {
+                        // Skip this one for a few seconds and look for another
+                        self.avoided_bounds.push((mob.bounds.grow_by(5), Instant::now(), 3000));
+                        return State::SearchingForEnemy;
+                    }
                     // Transition to next state
                     State::EnemyFound(*mob)
                 } else {

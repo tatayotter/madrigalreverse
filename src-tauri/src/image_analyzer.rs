@@ -360,6 +360,60 @@ impl ImageAnalyzer {
             .map(|(mob, dx, _)| (mob, dx))
     }
 
+    /// Read the name tag of a detected mob from the screen (Windows only).
+    pub fn read_mob_name(&self, config: &FarmingConfig, mob: &Target) -> Option<String> {
+        let image = self.image.as_ref()?;
+        let (wrapped, default, tolerance) = match mob.target_type {
+            TargetType::Mob(MobType::Passive) => {
+                (config.passive_mobs_colors(), [234, 234, 149], config.passive_tolerence())
+            }
+            TargetType::Mob(MobType::Aggressive) => {
+                (config.aggressive_mobs_colors(), [179, 23, 23], config.aggressive_tolerence())
+            }
+            TargetType::Mob(MobType::Violet) => {
+                (config.violet_mobs_colors(), [182, 144, 146], config.violet_tolerence())
+            }
+            TargetType::Mob(MobType::Giant) => {
+                let color = config.giant_mobs_colors()?;
+                ([Some(color[0]), Some(color[1]), Some(color[2])], color, config.giant_tolerence())
+            }
+            TargetType::TargetMarker => return None,
+        };
+        let color = [
+            wrapped[0].unwrap_or(default[0]),
+            wrapped[1].unwrap_or(default[1]),
+            wrapped[2].unwrap_or(default[2]),
+        ];
+        crate::ocr::read_name(image, mob.bounds, color, tolerance)
+    }
+
+    /// Mobs from `identify_mobs` within `radius` pixels of the screen center, closest first.
+    pub fn mobs_within(&self, mobs: &[Target], radius: i32) -> Vec<Target> {
+        let image = match self.image.as_ref() {
+            Some(image) => image,
+            None => return vec![],
+        };
+        let mid_x = (image.width() / 2) as i32;
+        let mid_y = (image.height() / 2) as i32;
+        let mut near: Vec<(Target, i32)> = mobs
+            .iter()
+            .map(|mob| {
+                let p = mob.get_attack_coords();
+                let d = (((p.x as i32 - mid_x).pow(2) + (p.y as i32 - mid_y).pow(2)) as f64).sqrt() as i32;
+                (*mob, d)
+            })
+            .filter(|&(_, d)| d <= radius)
+            .collect();
+        near.sort_by_key(|&(_, d)| d);
+        near.into_iter().map(|(mob, _)| mob).collect()
+    }
+
+    /// Horizontal offset of a target from the screen center (negative = left).
+    pub fn offset_x(&self, mob: &Target) -> i32 {
+        let mid_x = self.image.as_ref().map_or(0, |image| (image.width() / 2) as i32);
+        mob.get_attack_coords().x as i32 - mid_x
+    }
+
     pub fn identify_target_marker(&self, blue_target: bool) -> Option<Target> {
         let _timer = Timer::start_new("identify_target_marker");
         let mut coords = Vec::default();

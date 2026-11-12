@@ -152,6 +152,18 @@ impl ToString for BotMode {
     }
 }
 
+/// Normalize a user-entered list of monster names, dropping blank lines.
+fn clean_names(list: Option<&Vec<String>>) -> Vec<String> {
+    list.map(|names| {
+        names
+            .iter()
+            .map(|name| crate::monster_db::normalize(name))
+            .filter(|name| !name.is_empty())
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct FarmingConfig {
     /// Slot configuration
@@ -204,6 +216,13 @@ pub struct FarmingConfig {
     discord_notify_death: Option<bool>,
     discord_notify_danger: Option<bool>,
     discord_notify_disconnect: Option<bool>,
+
+    /// Read monster names from the screen and look them up in the monster list
+    name_reading: Option<bool>,
+    /// If not empty, only attack monsters with these names
+    monster_whitelist: Option<Vec<String>>,
+    /// Never attack monsters with these names
+    monster_blacklist: Option<Vec<String>>,
 }
 
 impl FarmingConfig {
@@ -236,6 +255,15 @@ impl FarmingConfig {
     }
     pub fn discord_notify_danger(&self) -> bool {
         self.discord_notify_danger.unwrap_or(true)
+    }
+    pub fn name_reading(&self) -> bool {
+        self.name_reading.unwrap_or(false)
+    }
+    pub fn monster_whitelist(&self) -> Vec<String> {
+        clean_names(self.monster_whitelist.as_ref())
+    }
+    pub fn monster_blacklist(&self) -> Vec<String> {
+        clean_names(self.monster_blacklist.as_ref())
     }
     pub fn discord_notify_disconnect(&self) -> bool {
         self.discord_notify_disconnect.unwrap_or(true)

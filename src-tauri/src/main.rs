@@ -4,8 +4,10 @@ mod behavior;
 mod data;
 mod image_analyzer;
 mod ipc;
+mod monster_db;
 mod movement;
 mod notifications;
+mod ocr;
 mod platform;
 mod utils;
 
@@ -313,6 +315,10 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
         app_handle.path_resolver().app_data_dir().unwrap().to_string_lossy(),
         profile_id
     ).clone();
+
+    if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
+        monster_db::init(app_data_dir, logger.clone());
+    }
 
     std::thread::spawn(move || {
         let logger = logger.clone();

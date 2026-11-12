@@ -37,6 +37,10 @@ sentry-slog = "0.27.0"
 raw-window-handle = "0.5" # This has to be in sync with the version used by tauri
 libscreenshot = { git = "https://github.com/MadrigalStreetCartel/libscreenshot"}
 
+[target.'cfg(windows)'.dependencies]
+# Built-in Windows OCR, used to read monster name tags
+windows = { version = "0.56", features = ["Foundation", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams"] }
+
 [features]
 # by default Tauri runs in production mode
 # when `tauri dev` runs it is executed with `cargo run --no-default-features` if `devPath` is an URL
