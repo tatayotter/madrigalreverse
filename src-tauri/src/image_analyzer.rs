@@ -181,6 +181,14 @@ impl ImageAnalyzer {
             .collect()
     }
 
+    /// The bright core of red (aggressive) name tags, e.g. (245, 3, 3). The default
+    /// aggressive color (179, 23, 23) only matches the darker letter edges, which leaves
+    /// too few pixels for long names to be detected reliably.
+    #[inline(always)]
+    fn is_name_red(c: &[u8; 4]) -> bool {
+        c[0] >= 225 && c[1] <= 15 && c[2] <= 15
+    }
+
     /// Check if pixel `c` matches reference pixel `r` with the given `tolerance`.
     #[inline(always)]
     fn pixel_matches(c: &[u8; 4], r: &[u8; 3], tolerance: u8) -> bool {
@@ -248,7 +256,7 @@ impl ImageAnalyzer {
                         &px.0,
                         &ref_color_agg,
                         config.aggressive_tolerence(),
-                    ) {
+                    ) || Self::is_name_red(&px.0) {
                         drop(snd.send(MobPixel(x, y, TargetType::Mob(MobType::Aggressive))));
                     } else if Self::pixel_matches(
                         &px.0,
@@ -378,7 +386,9 @@ impl ImageAnalyzer {
                 (config.passive_mobs_colors(), [234, 234, 149], config.passive_tolerence())
             }
             TargetType::Mob(MobType::Aggressive) => {
-                (config.aggressive_mobs_colors(), [179, 23, 23], config.aggressive_tolerence())
+                // Read red names by their bright core (see `is_name_red`); the configured
+                // color is the darker letter edge and leaves the letters hollow.
+                ([None, None, None], [245, 3, 3], 12)
             }
             TargetType::Mob(MobType::Violet) => {
                 (config.violet_mobs_colors(), [182, 144, 146], config.violet_tolerence())

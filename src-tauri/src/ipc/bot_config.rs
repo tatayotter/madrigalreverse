@@ -325,7 +325,7 @@ impl FarmingConfig {
     }
 
     pub fn max_mobs_name_width(&self) -> u32 {
-        self.max_mobs_name_width.unwrap_or(180)
+        self.max_mobs_name_width.unwrap_or(260)
     }
 
     pub fn min_hp_attack(&self) -> u32 {
