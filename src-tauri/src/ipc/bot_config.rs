@@ -211,6 +211,11 @@ pub struct FarmingConfig {
     giant_mobs_colors: Option<[Option<u8>; 3]>,
     giant_tolerence: Option<u8>,
 
+    /// Duo: wait for the Support copy of Neuz (healer) before pulling monsters
+    duo_wait_for_healer: Option<bool>,
+    duo_healer_min_hp: Option<u32>,
+    duo_healer_min_mp: Option<u32>,
+
     /// Read monster names from the screen and look them up in the monster list
     name_reading: Option<bool>,
     /// If not empty, only attack monsters with these names
@@ -237,6 +242,15 @@ impl FarmingConfig {
         self.giant_tolerence.unwrap_or(10)
     }
 
+    pub fn duo_wait_for_healer(&self) -> bool {
+        self.duo_wait_for_healer.unwrap_or(false)
+    }
+    pub fn duo_healer_min_hp(&self) -> u32 {
+        self.duo_healer_min_hp.unwrap_or(40)
+    }
+    pub fn duo_healer_min_mp(&self) -> u32 {
+        self.duo_healer_min_mp.unwrap_or(20)
+    }
     pub fn name_reading(&self) -> bool {
         self.name_reading.unwrap_or(false)
     }
@@ -403,9 +417,16 @@ pub struct SupportConfig {
     afk_timeout: Option<u64>,
     interval_between_buffs: Option<u64>,
     max_main_distance: Option<u32>,
+
+    /// Duo: share this healer's status with the Farming copy of Neuz
+    duo_link: Option<bool>,
 }
 
 impl SupportConfig {
+    pub fn duo_link(&self) -> bool {
+        self.duo_link.unwrap_or(false)
+    }
+
     pub fn interval_between_buffs(&self) -> u128 {
         self.interval_between_buffs.unwrap_or(2000).into()
     }

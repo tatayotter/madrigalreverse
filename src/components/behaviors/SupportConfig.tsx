@@ -79,6 +79,11 @@ const SupportConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         item={<BooleanSlider value={config.is_in_party ?? false} onChange={value => onChange?.({ ...config, is_in_party: value })} />}
                     />
                     <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Duo link" helpText="Share this healer's HP, MP, distance and any giants/violets it sees with the Farming copy of Neuz on this PC (turn on 'Duo with healer' there)" />}
+                        item={<BooleanSlider value={config.duo_link ?? false} onChange={value => onChange?.({ ...config, duo_link: value })} />}
+                    />
+                    <ConfigTableRow
                         label={<ConfigLabel name="Reset all slots" helpText="" />}
                         item={<button onClick={() => resetSlotYesNo.open()}>⚙️</button>}
                     />

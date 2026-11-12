@@ -7,6 +7,9 @@ Date format: `DD/MM/YYYY`
 <!-- /maintainers -->
 
 **Unreleased (fork)**
+- Duo (farmer + healer on one PC)
+    - Support mode "Duo link" shares the healer's HP/MP, distance to the farmer and nearby giants/violets
+    - Farming "Duo with healer": between fights, waits while the healer is dead, low on HP/MP or too far; flees when the healer sees danger
 - Farming
     - Anti-killsteal is back: monsters that are already hurt when targeted are skipped, unless something is hitting you
     - Giant & violet flee: drops the target, turns away and runs when a violet (or a giant, with a configurable name color) comes within a set radius

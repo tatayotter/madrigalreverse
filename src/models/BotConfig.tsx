@@ -119,6 +119,10 @@ export type FarmingConfigModel = Partial<{
     giant_tolerence: number,
 
 
+    duo_wait_for_healer: boolean,
+    duo_healer_min_hp: number,
+    duo_healer_min_mp: number,
+
     name_reading: boolean,
     monster_whitelist: string[],
     monster_blacklist: string[],
@@ -136,6 +140,7 @@ export type SupportConfigModel = Partial<{
     afk_timeout: number,
     afk_ready_to_disconnect: boolean,
     max_main_distance: number,
+    duo_link: boolean,
 }>
 
 export type ShoutConfigModel = Partial<{
