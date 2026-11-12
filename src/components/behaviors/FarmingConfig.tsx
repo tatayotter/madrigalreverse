@@ -55,7 +55,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
         'obstacle_avoidance_cooldown': 3000,
         'obstacle_avoidance_max_try': 3,
         'min_mobs_name_width': 15,
-        'max_mobs_name_width': 180,
+        'max_mobs_name_width': 260,
         'circle_pattern_rotation_duration': 30,
         'min_hp_attack': 30,
         'prevent_already_attacked': true,
