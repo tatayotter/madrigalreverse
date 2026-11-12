@@ -15,6 +15,7 @@ Date format: `DD/MM/YYYY`
     - Reads the character position by typing /position and reading the green reply in the chat box
     - Stay in area (Farming settings): remembers where (and in which region, read from the map) you pressed Engage and, between fights, walks back when farther than the radius. It learns turn speed and direction from its own movement. It pauses instead of walking when you are in another region or very far away (teleport, revive)
 - Targeting
+    - After a kill, if something is still hitting you, the closest monster (red names first) is attacked before looking further away. A lone red name right after killing a red mob is no longer ignored when you're being hit
     - Clicking a monster tries up to 4 spots down from the name tag until the attack cursor shows, so bigger monsters (Captains) get selected instead of missed
 - Monster names
     - Name reading keeps the soft edges of the letters and enlarges them smoothly, so Windows OCR can read the tiny name font (it returned nothing before)

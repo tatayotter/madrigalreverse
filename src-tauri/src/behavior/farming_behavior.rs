@@ -521,6 +521,10 @@ impl FarmingBehavior<'_> {
         slog::warn!(self.logger, "Gave up walking home after 12 steps");
     }
 
+    fn was_hit_within(&self, ms: u128) -> bool {
+        self.last_hp_drop_time.map_or(false, |t| t.elapsed().as_millis() < ms)
+    }
+
     fn is_under_attack(&self) -> bool {
         self.last_hp_drop_time.map_or(false, |t| t.elapsed().as_millis() < UNDER_ATTACK_WINDOW_MS)
     }
@@ -887,6 +891,32 @@ impl FarmingBehavior<'_> {
                 true => 325,
                 false => 1000,
             };
+            // Something is hitting us (HP went down just now, outside a fight): finish it
+            // first. It's right next to us, so take the closest monster, red names first.
+            if self.was_hit_within(3000) {
+                let aggressive: Vec<Target> = mobs
+                    .iter()
+                    .filter(|m| m.target_type == TargetType::Mob(MobType::Aggressive))
+                    .cloned()
+                    .collect();
+                let attackers = if aggressive.is_empty() {
+                    mobs.iter()
+                        .filter(|m| m.target_type != TargetType::Mob(MobType::Violet))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                } else {
+                    aggressive
+                };
+                let avoid = if self.avoided_bounds.is_empty() { None } else { Some(&self.avoided_bounds) };
+                if let Some(mob) = image.find_closest_mob(attackers.as_slice(), avoid, 250, self.logger) {
+                    if self.name_allows_attack(config, image, mob) {
+                        slog::debug!(self.logger, "Being hit, targeting the closest monster first"; "type" => format!("{:?}", mob.target_type));
+                        self.rotation_movement_tries = 0;
+                        return State::EnemyFound(*mob);
+                    }
+                }
+            }
+
             let mut mob_list = self.prioritize_aggro(config, image, mobs.clone());
 
             // Protecting the healer: aggressive monsters only, if there are any
@@ -964,7 +994,9 @@ impl FarmingBehavior<'_> {
                 (mob_list.is_empty() ||
                     (self.last_killed_type == MobType::Aggressive &&
                         mob_list.len() == 1 &&
-                        self.last_kill_time.elapsed().as_millis() < 5000)) &&
+                        self.last_kill_time.elapsed().as_millis() < 5000 &&
+                        // ...unless we're being hit: then that red name is a live attacker
+                        !self.was_hit_within(3000))) &&
                 image.client_stats.hp.value >= config.min_hp_attack()
             {
                 mob_list = mobs
