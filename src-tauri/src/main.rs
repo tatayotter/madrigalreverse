@@ -2,6 +2,7 @@
 
 mod behavior;
 mod data;
+mod duo;
 mod image_analyzer;
 mod ipc;
 mod monster_db;
@@ -308,6 +309,7 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
     ).clone();
 
     if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
+        duo::init(app_data_dir.clone());
         monster_db::init(app_data_dir, logger.clone());
     }
 

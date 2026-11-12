@@ -41,6 +41,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     const obstacleAvoidanceDebugModal = useModal(debugModal)
     const fleeModal = useModal(debugModal)
     const namesModal = useModal(debugModal)
+    const duoModal = useModal(debugModal)
 
     const selectedMobType = useRef(0)
 
@@ -98,6 +99,10 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                     <ConfigTableRow
                         label={<ConfigLabel name="Avoidances" helpText="" />}
                         item={<button onClick={obstacleAvoidanceDebugModal.open}>⚙️</button>}
+                    />
+                    <ConfigTableRow
+                        label={<ConfigLabel name="Duo with healer" helpText="Coordinate with a second Neuz running Support mode on this PC" />}
+                        item={<button onClick={duoModal.open}>⚙️</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Monster names" helpText="Read monster names from the screen to skip giants and pick which monsters to attack" />}
@@ -190,6 +195,25 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         layout="v"
                         label={<ConfigLabel name="" helpText="" />}
                         item={<button onClick={() => onChange?.({ ...config, giant_mobs_colors: undefined })}>Clear giant color</button>}
+                    />
+                </ConfigTable>
+            }/>
+            <Modal isShowing={duoModal.isShown} hide={duoModal.close} title={<h4>Duo with healer</h4>} body={
+                <ConfigTable>
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Wait for healer" helpText="Run a second Neuz in Support mode with 'Duo link' on. Between fights, the farmer waits while the healer is dead, low on HP/MP or too far away. If Giant & violet flee is on, the farmer also runs when the healer sees a giant or violet." />}
+                        item={<BooleanSlider value={config.duo_wait_for_healer ?? false} onChange={value => onChange?.({ ...config, duo_wait_for_healer: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Healer min HP" helpText="Wait while the healer's HP is below this. Default: 40" />}
+                        item={<NumericInput unit='%' value={config.duo_healer_min_hp ?? 40} onChange={value => onChange({...config, duo_healer_min_hp: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Healer min MP" helpText="Wait while the healer's MP is below this. Default: 20" />}
+                        item={<NumericInput unit='%' value={config.duo_healer_min_mp ?? 20} onChange={value => onChange({...config, duo_healer_min_mp: value})} />}
                     />
                 </ConfigTable>
             }/>

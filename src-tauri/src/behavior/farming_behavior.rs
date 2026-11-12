@@ -10,6 +10,7 @@ use crate::{
     image_analyzer::ImageAnalyzer,
     ipc::{ BotConfig, FarmingConfig, FrontendInfo, SlotType },
     movement::MovementAccessor,
+    duo::{ self, HealerStatus },
     monster_db::{ monster_db, normalize },
     platform::{ eval_mob_click, send_slot_eval },
     play,
@@ -21,6 +22,10 @@ const MAX_DISTANCE_FOR_AOE: i32 = 75;
 const FLEE_COOLDOWN_MS: u128 = 2500;
 /// If our HP dropped within this window, we treat ourselves as under attack.
 const UNDER_ATTACK_WINDOW_MS: u128 = 2000;
+/// How often the healer's status file is read.
+const DUO_READ_INTERVAL_MS: u128 = 250;
+/// How often to log why the farmer is waiting for the healer.
+const DUO_LOG_INTERVAL_MS: u128 = 5000;
 /// Minimum time between two name-reading danger scans (OCR is slow-ish).
 const NAME_SCAN_COOLDOWN_MS: u128 = 1000;
 /// How many nearby mobs to read names of per danger scan.
@@ -65,6 +70,10 @@ pub struct FarmingBehavior<'a> {
     last_hp_seen: u32,
     last_hp_drop_time: Option<Instant>,
     last_name_scan: Option<Instant>,
+    healer_status: Option<HealerStatus>,
+    last_healer_read: Option<Instant>,
+    last_healer_danger_handled: u64,
+    last_duo_log: Option<Instant>,
 }
 
 impl<'a> Behavior<'a> for FarmingBehavior<'a> {
@@ -100,6 +109,10 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             last_hp_seen: 0,
             last_hp_drop_time: None,
             last_name_scan: None,
+            healer_status: None,
+            last_healer_read: None,
+            last_healer_danger_handled: 0,
+            last_duo_log: None,
         }
     }
 
@@ -123,6 +136,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         // Update all needed timestamps
         self.update_timestamps(config);
         self.track_hp(image);
+        self.read_healer_status(config);
         self.check_restorations(config, image);
 
         // Giant / violet flee takes priority over everything else
@@ -151,6 +165,12 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             }
         }
 
+        // Duo: don't pull a new monster while the healer can't keep up
+        if self.should_wait_for_healer(config) {
+            frontend_info.set_is_attacking(false);
+            return;
+        }
+
         // Check state machine
         self.state = match self.state {
             State::NoEnemyFound => self.on_no_enemy_found(config),
@@ -173,6 +193,44 @@ impl FarmingBehavior<'_> {
             self.last_hp_drop_time = Some(Instant::now());
         }
         self.last_hp_seen = hp;
+    }
+
+    fn read_healer_status(&mut self, config: &FarmingConfig) {
+        if !config.duo_wait_for_healer() {
+            return;
+        }
+        if self.last_healer_read.map_or(true, |t| t.elapsed().as_millis() >= DUO_READ_INTERVAL_MS) {
+            self.healer_status = duo::read_healer();
+            self.last_healer_read = Some(Instant::now());
+        }
+    }
+
+    /// Only between fights, and never while something is hitting us.
+    fn should_wait_for_healer(&mut self, config: &FarmingConfig) -> bool {
+        if !config.duo_wait_for_healer() || self.is_under_attack() {
+            return false;
+        }
+        if !matches!(self.state, State::SearchingForEnemy | State::NoEnemyFound) {
+            return false;
+        }
+        let reason = duo::farmer_wait_reason(
+            self.healer_status.as_ref(),
+            duo::now_ms(),
+            config.duo_healer_min_hp(),
+            config.duo_healer_min_mp()
+        );
+        match reason {
+            Some(reason) => {
+                if self.last_duo_log.map_or(true, |t| t.elapsed().as_millis() >= DUO_LOG_INTERVAL_MS) {
+                    slog::info!(self.logger, "Waiting for healer"; "reason" => reason);
+                    self.last_duo_log = Some(Instant::now());
+                }
+                // Don't count this as "no monsters found" for the auto-disconnect timer
+                self.last_no_ennemy_time = None;
+                true
+            }
+            None => false,
+        }
     }
 
     fn is_under_attack(&self) -> bool {
@@ -222,6 +280,16 @@ impl FarmingBehavior<'_> {
     /// Returns a description of what was found and its horizontal offset from the center.
     fn find_danger(&mut self, config: &FarmingConfig, image: &ImageAnalyzer) -> Option<(String, i32)> {
         let radius = config.flee_radius();
+
+        // Duo: the healer saw a giant/violet that may be off our screen
+        if config.duo_wait_for_healer() && duo::healer_sees_danger(self.healer_status.as_ref(), duo::now_ms()) {
+            let danger_ms = self.healer_status.as_ref().map_or(0, |s| s.danger_ms);
+            if danger_ms != self.last_healer_danger_handled {
+                self.last_healer_danger_handled = danger_ms;
+                return Some(("danger seen by healer".to_string(), 0));
+            }
+        }
+
         if let Some((danger, dx)) = image.find_danger_near(config, radius) {
             let kind = match danger.target_type {
                 TargetType::Mob(MobType::Giant) => "giant",

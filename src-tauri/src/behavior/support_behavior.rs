@@ -6,9 +6,10 @@ use tauri::Window;
 use super::Behavior;
 
 use crate::{
-    data::Point,
+    data::{ AliveState, Point },
+    duo::{ self, HealerStatus },
     image_analyzer::ImageAnalyzer,
-    ipc::{ BotConfig, FrontendInfo, SlotType, SupportConfig },
+    ipc::{ BotConfig, FarmingConfig, FrontendInfo, SlotType, SupportConfig },
     movement::{ prelude::*, MovementAccessor },
     platform::{ eval_simple_click, send_slot_eval },
     play,
@@ -16,6 +17,12 @@ use crate::{
 const HEAL_SKILL_CAST_TIME: u64 = 2000;
 const BUFF_CAST_TIME: u64 = 2500;
 const AOE_SKILL_CAST_TIME: u64 = 100;
+/// Duo: how often the healer writes its status for the farmer.
+const DUO_PUBLISH_INTERVAL_MS: u128 = 250;
+/// Duo: how often the healer scans its screen for violets/giants.
+const DUO_DANGER_SCAN_INTERVAL_MS: u128 = 1000;
+/// Duo: how close (screen pixels) a violet/giant must be for the healer to warn.
+const DUO_DANGER_RADIUS: i32 = 300;
 pub struct SupportBehavior<'a> {
     logger: &'a Logger,
     movement: &'a MovementAccessor,
@@ -37,6 +44,11 @@ pub struct SupportBehavior<'a> {
     target_buffing: bool,
     //is_on_flight: bool,
     buff_counter: u32,
+
+    leader_in_range: bool,
+    last_duo_publish: Option<Instant>,
+    last_danger_scan: Option<Instant>,
+    danger_ms: u64,
 }
 
 impl<'a> Behavior<'a> for SupportBehavior<'a> {
@@ -59,6 +71,10 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
             target_buffing: false,
             buff_counter: 0,
             //is_on_flight: false,
+            leader_in_range: false,
+            last_duo_publish: None,
+            last_danger_scan: None,
+            danger_ms: 0,
         }
     }
 
@@ -88,11 +104,13 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
         self.update_slots_usage(config);
 
         self.has_target = image.client_stats.target_is_mover;
+        self.duo_tick(config, image);
 
         self.use_party_skills(config);
         self.check_self_restorations(config, image);
 
         if self.has_target == false {
+            self.leader_in_range = false;
             if config.is_in_party() {
                 self.select_party_leader(config);
             }
@@ -116,9 +134,12 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
         self.check_target_restorations(config, image);
         if image.client_stats.target_on_screen {
             let dist = self.is_target_in_range(config, image);
+            self.leader_in_range = dist;
             if dist == false {
                 return;
             }
+        } else {
+            self.leader_in_range = false;
         }
 
         if self.wait_cooldown() {
@@ -148,6 +169,33 @@ impl<'a> Behavior<'a> for SupportBehavior<'a> {
 }
 
 impl SupportBehavior<'_> {
+    /// Duo link: look for nearby violets/giants and share our status with the farmer.
+    fn duo_tick(&mut self, config: &SupportConfig, image: &ImageAnalyzer) {
+        if !config.duo_link() {
+            return;
+        }
+        if self.last_danger_scan.map_or(true, |t| t.elapsed().as_millis() >= DUO_DANGER_SCAN_INTERVAL_MS) {
+            self.last_danger_scan = Some(Instant::now());
+            // Default name colors; the healer has no mob color settings of its own.
+            if image.find_danger_near(&FarmingConfig::default(), DUO_DANGER_RADIUS).is_some() {
+                self.danger_ms = duo::now_ms();
+                slog::info!(self.logger, "Healer sees a violet/giant nearby, telling the farmer");
+            }
+        }
+        if self.last_duo_publish.map_or(true, |t| t.elapsed().as_millis() >= DUO_PUBLISH_INTERVAL_MS) {
+            self.last_duo_publish = Some(Instant::now());
+            duo::publish_healer(&HealerStatus {
+                updated_ms: duo::now_ms(),
+                alive: image.client_stats.is_alive == AliveState::Alive,
+                hp: image.client_stats.hp.value,
+                mp: image.client_stats.mp.value,
+                has_leader: self.has_target,
+                leader_in_range: self.leader_in_range,
+                danger_ms: self.danger_ms,
+            });
+        }
+    }
+
     fn random_camera_movement(&mut self) {
         //add movement every minute to try to avoid bot detection
         if self.last_jump_time.elapsed().as_millis() > 10000 {
