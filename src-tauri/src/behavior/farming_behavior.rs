@@ -11,7 +11,6 @@ use crate::{
     ipc::{ BotConfig, FarmingConfig, FrontendInfo, SlotType },
     movement::MovementAccessor,
     monster_db::{ monster_db, normalize },
-    notifications::{ send_discord, send_discord_blocking },
     platform::{ eval_mob_click, send_slot_eval },
     play,
     utils::DateTime,
@@ -20,8 +19,6 @@ use crate::{
 const MAX_DISTANCE_FOR_AOE: i32 = 75;
 /// Minimum time between two flee moves.
 const FLEE_COOLDOWN_MS: u128 = 2500;
-/// Minimum time between two "danger nearby" Discord alerts.
-const DANGER_ALERT_COOLDOWN_MS: u128 = 60_000;
 /// If our HP dropped within this window, we treat ourselves as under attack.
 const UNDER_ATTACK_WINDOW_MS: u128 = 2000;
 /// Minimum time between two name-reading danger scans (OCR is slow-ish).
@@ -65,7 +62,6 @@ pub struct FarmingBehavior<'a> {
     wait_duration: Option<Duration>,
     wait_start: Instant,
     last_flee_time: Option<Instant>,
-    last_danger_alert: Option<Instant>,
     last_hp_seen: u32,
     last_hp_drop_time: Option<Instant>,
     last_name_scan: Option<Instant>,
@@ -101,7 +97,6 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             wait_duration: None,
             wait_start: Instant::now(),
             last_flee_time: None,
-            last_danger_alert: None,
             last_hp_seen: 0,
             last_hp_drop_time: None,
             last_name_scan: None,
@@ -203,17 +198,6 @@ impl FarmingBehavior<'_> {
         };
         let kind = kind.as_str();
         slog::info!(self.logger, "Fleeing from dangerous mob"; "kind" => kind, "dx" => dx);
-
-        if
-            config.discord_notify_danger() &&
-            self.last_danger_alert.map_or(true, |t| t.elapsed().as_millis() > DANGER_ALERT_COOLDOWN_MS)
-        {
-            send_discord(
-                config.discord_webhook_url(),
-                format!("⚠️ A {} came close, running away from it.", kind)
-            );
-            self.last_danger_alert = Some(Instant::now());
-        }
 
         // Turn away from the side the danger is on, then run forward while jumping.
         use crate::movement::prelude::*;
@@ -491,12 +475,6 @@ impl FarmingBehavior<'_> {
                 config.mobs_timeout() > 0 &&
                 last_no_ennemy_time.elapsed().as_millis() > config.mobs_timeout()
             {
-                if config.discord_notify_disconnect() {
-                    send_discord_blocking(
-                        config.discord_webhook_url(),
-                        "🔌 No monsters found for a while, disconnecting."
-                    );
-                }
                 self.window.app_handle().exit(0);
             }
         } else {

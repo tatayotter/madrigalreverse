@@ -211,12 +211,6 @@ pub struct FarmingConfig {
     giant_mobs_colors: Option<[Option<u8>; 3]>,
     giant_tolerence: Option<u8>,
 
-    /// Discord webhook alerts
-    discord_webhook_url: Option<String>,
-    discord_notify_death: Option<bool>,
-    discord_notify_danger: Option<bool>,
-    discord_notify_disconnect: Option<bool>,
-
     /// Read monster names from the screen and look them up in the monster list
     name_reading: Option<bool>,
     /// If not empty, only attack monsters with these names
@@ -243,19 +237,6 @@ impl FarmingConfig {
         self.giant_tolerence.unwrap_or(10)
     }
 
-    /// Returns the webhook URL only if it looks like a valid https URL.
-    pub fn discord_webhook_url(&self) -> Option<String> {
-        self.discord_webhook_url
-            .as_ref()
-            .map(|url| url.trim().to_string())
-            .filter(|url| url.starts_with("https://"))
-    }
-    pub fn discord_notify_death(&self) -> bool {
-        self.discord_notify_death.unwrap_or(true)
-    }
-    pub fn discord_notify_danger(&self) -> bool {
-        self.discord_notify_danger.unwrap_or(true)
-    }
     pub fn name_reading(&self) -> bool {
         self.name_reading.unwrap_or(false)
     }
@@ -264,9 +245,6 @@ impl FarmingConfig {
     }
     pub fn monster_blacklist(&self) -> Vec<String> {
         clean_names(self.monster_blacklist.as_ref())
-    }
-    pub fn discord_notify_disconnect(&self) -> bool {
-        self.discord_notify_disconnect.unwrap_or(true)
     }
 
     pub fn on_afk_disconnect(&self) -> bool {
