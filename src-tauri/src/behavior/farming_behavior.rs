@@ -440,7 +440,7 @@ impl FarmingBehavior<'_> {
             (None, Some(text)) => Some(normalize(text)),
             (None, None) => None,
         };
-        slog::debug!(self.logger, "Read mob name"; "ocr" => text.as_deref().unwrap_or("-"), "match" => info.map_or("-", |i| i.name.as_str()));
+        slog::debug!(self.logger, "Read mob name"; "ocr" => text.as_deref().unwrap_or("-"), "match" => info.map_or("-", |i| i.name.as_str()), "bounds" => format!("{}x{} at {},{}", mob.bounds.w, mob.bounds.h, mob.bounds.x, mob.bounds.y), "ocr_engine" => crate::ocr::engine_status());
 
         if info.map_or(false, |i| i.rank.is_dangerous()) {
             return false;
@@ -905,6 +905,7 @@ impl FarmingBehavior<'_> {
 
             self.state = State::Attacking(mob);
         } else {
+            slog::debug!(self.logger, "Clicked a monster but no target was selected"; "target_on_screen" => image.client_stats.target_on_screen, "target_is_mover" => image.client_stats.target_is_mover, "target_hp" => image.client_stats.target_hp.value, "target_mp" => image.client_stats.target_mp.value, "click" => format!("{:?}", self.last_click_pos));
             self.avoid_last_click();
             self.state = State::SearchingForEnemy;
         }

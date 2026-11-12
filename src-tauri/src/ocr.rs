@@ -72,6 +72,11 @@ pub fn prepare(image: &ImageBuffer, bounds: Bounds, color: [u8; 3], tolerance: u
     Some(PreparedText { width, height, bgra })
 }
 
+/// Whether the Windows OCR engine could be created, and for which language.
+pub fn engine_status() -> String {
+    platform::engine_status()
+}
+
 /// Read the text of a name tag. Returns `None` if nothing readable was found.
 pub fn read_name(image: &ImageBuffer, bounds: Bounds, color: [u8; 3], tolerance: u8) -> Option<String> {
     let prepared = prepare(image, bounds, color, tolerance)?;
@@ -108,6 +113,17 @@ mod platform {
             .or_else(|| OcrEngine::TryCreateFromUserProfileLanguages().ok())
     }
 
+    pub fn engine_status() -> String {
+        ENGINE.with(|engine| match engine {
+            Some(engine) => engine
+                .RecognizerLanguage()
+                .and_then(|l| l.LanguageTag())
+                .map(|t| t.to_string())
+                .unwrap_or_else(|_| "ready".into()),
+            None => "unavailable (no OCR language pack installed?)".into(),
+        })
+    }
+
     pub fn recognize(text: &PreparedText) -> Option<String> {
         ENGINE.with(|engine| {
             let engine = engine.as_ref()?;
@@ -134,6 +150,10 @@ mod platform {
 #[cfg(not(windows))]
 mod platform {
     use super::PreparedText;
+
+    pub fn engine_status() -> String {
+        "not supported on this platform".into()
+    }
 
     pub fn recognize(_text: &PreparedText) -> Option<String> {
         None
