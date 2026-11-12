@@ -12,21 +12,29 @@ type ItemProps = {
 }
 
 const Label = styled.td`
-    padding: .25rem 0;
+    width: 100%;
+    padding: 8px 0;
+    vertical-align: middle;
 `
 
 const FlexLabel = styled.td`
+    width: 100%;
     display: flex;
     justify-content: flex-start;
-    align-items: flex-start;
-    padding: .25rem 0;
+    align-items: center;
+    padding: 8px 0 4px;
 `
 
 const Item = styled.td<ItemProps>`
-    display: flex;
-    justify-content: flex-end;
-    align-items: flex-start;
-    padding: .25rem 0;
+    padding: 8px 0 8px 12px;
+    vertical-align: middle;
+    white-space: nowrap;
+
+    & > .cell {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+    }
 
 
     &[disabled] {
@@ -44,7 +52,7 @@ const ConfigTableRow = ({ label, item, layout = "h", disabled = false }: Props) 
             {layout === "v" && (
                 <FlexLabel>{label}</FlexLabel>
             )}
-            <Item disabled={disabled}>{item}</Item>
+            <Item disabled={disabled}><div className="cell">{item}</div></Item>
         </>
     )
 }

@@ -11,7 +11,7 @@ type Props = React.PropsWithChildren<{
 
 const TabControl = ({ className, children, activeMode, onSelect }: Props) => {
     return (
-        <div className={className}>
+        <div className={className} role="tablist">
             {React.Children.map(children, child => (
                 React.cloneElement(child as React.ReactElement, { activeMode, onSelect })
             ))}
@@ -21,7 +21,9 @@ const TabControl = ({ className, children, activeMode, onSelect }: Props) => {
 
 export default styled(TabControl)`
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0;
+    gap: 2px;
+    padding: 3px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
 `

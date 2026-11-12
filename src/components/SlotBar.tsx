@@ -7,6 +7,7 @@ import SlotModal from './SlotModal'
 import useModal from './utils/UseModal'
 import { useState } from 'react'
 import { useKeyPress } from './utils/KeyboardHotkeys'
+import { LuChevronDown, LuChevronUp } from 'react-icons/lu'
 
 type Props = {
     className?: string,
@@ -51,25 +52,23 @@ const SlotBar = ({ className, config, botMode, onChange }: Props) => {
                         <Slot key={index} type={slot.slot_type} index={index} toggleSlotModal={(event,targetSlot) => toogleSlot(index,event,targetSlot)} indexName={index +""} slot={slots[currentBarIndex].slots[index]} />
 
                     ))}
-                    <div className="slotIndexChanger">
-                        <button className={`changeBtn ${currentBarIndex === 8 ? 'grayedOutBtn' : ''}`} onClick={() => {
-                            if (currentBarIndex != 8) {
-                                setCurrentBarIndex(currentBarIndex+1)
-                            }
-                        }}>
-                            &#9650;
-                        </button>
-                        <button className={`changeBtn ${currentBarIndex === 0 ? 'grayedOutBtn' : ''}`} onClick={() => {
-                            if (currentBarIndex != 0) {
-                                setCurrentBarIndex(currentBarIndex-1)
-                            }
-                        }}>
-                            &#x25BC;
-                        </button>
-                    </div>
-                    <div className="slotIndexDisplay">
-                        {currentBarIndex + 1}
-                    </div>
+                </div>
+                <div className="barPicker" title="Slot bar (F1-F9 also switch bars)">
+                    <button className={`changeBtn ${currentBarIndex === 8 ? 'grayedOutBtn' : ''}`} onClick={() => {
+                        if (currentBarIndex != 8) {
+                            setCurrentBarIndex(currentBarIndex+1)
+                        }
+                    }}>
+                        <LuChevronUp size={12} />
+                    </button>
+                    <div className="slotIndexDisplay">F{currentBarIndex + 1}</div>
+                    <button className={`changeBtn ${currentBarIndex === 0 ? 'grayedOutBtn' : ''}`} onClick={() => {
+                        if (currentBarIndex != 0) {
+                            setCurrentBarIndex(currentBarIndex-1)
+                        }
+                    }}>
+                        <LuChevronDown size={12} />
+                    </button>
                 </div>
             </div>
         </>
@@ -77,52 +76,61 @@ const SlotBar = ({ className, config, botMode, onChange }: Props) => {
 }
 
 export default styled(SlotBar)`
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    padding: 0 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
 
     & .slots {
+        flex: 1;
         display: flex;
         flex-direction: row;
         align-items: center;
         justify-content: center;
-        gap: .25rem;
-        background: hsla(0,0%,0%,.75);
-        backdrop-filter: blur(.5rem);
-        padding: .5rem 2.5rem 1rem 2.5rem;
-        border-radius: 100rem;
-        border: 1px solid hsl(48,58%,43%);
+        gap: 4px;
     }
 
-    & .slotIndexChanger {
-        position: absolute;
-        top: 10px;
-        left: 10px;
+    & .barPicker {
         display: flex;
         flex-direction: column;
-
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding-left: 8px;
+        border-left: 1px solid var(--border);
     }
 
     & .slotIndexDisplay {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        color: rgb(240, 209, 105);
-        font-size: 1.2rem;
-
-
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        font-variant-numeric: tabular-nums;
     }
-    & .grayedOutBtn {
-        background-color: rgb(140, 140, 140) !important;
-    }
+
     & .changeBtn {
-        border-radius: 50%;
-        height: 25px;
-        width: 25px;
-        text-align: center;
-        font-size: 10px;
-        background-color: rgb(240, 209, 105);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        height: 18px;
+        padding: 0;
+        border: none;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
 
-    }
-    & .changeBtn:hover {
-        background-color: rgb(255, 236, 154);
+        &:hover {
+            background: var(--surface-2);
+            color: var(--text);
+        }
     }
 
+    & .grayedOutBtn {
+        opacity: .3;
+        pointer-events: none;
+    }
 `

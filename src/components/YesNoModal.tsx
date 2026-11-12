@@ -1,10 +1,6 @@
 import styled from 'styled-components'
-import ConfigLabel from './config/ConfigLabel'
-import ConfigTableRow from './config/ConfigTableRow'
 import Modal from './Modal'
-import ConfigTable from './config/ConfigTable'
 import { ReactElement } from 'react'
-import { message } from '@tauri-apps/api/dialog'
 
 type Props = {
     className?: string,
@@ -31,8 +27,8 @@ const YesNoModal = ({className, isShowing, hide, onYes, onNo, title, body}: Prop
                 <>
                     {body && <div className='modalBody'> {body} </div>}
                     <div className="buttonHolder">
-                        <button className='btn sm' onClick={() => onClick(0)}>Yes</button>
-                        <button className='btn sm' onClick={() => onClick(1)}>No</button>
+                        <button className='btn' onClick={() => onClick(1)}>Cancel</button>
+                        <button className='btn primary' onClick={() => onClick(0)}>Confirm</button>
                     </div>
                 </>
             }/>
@@ -44,15 +40,13 @@ const YesNoModal = ({className, isShowing, hide, onYes, onNo, title, body}: Prop
 
 export default styled(YesNoModal)`
     & .modalBody {
-        text-align: center;
+        margin-bottom: 14px;
+        color: var(--text-muted);
     }
 
     & .buttonHolder {
         display: flex;
-        gap: 32px;
-        margin-left: 50%;
-        transform: translateX(-50%)
+        justify-content: flex-end;
+        gap: 8px;
     }
 `
-
-

@@ -19,6 +19,7 @@ import { DefaultValuesChecker } from '../utils/DefaultValuesChecker'
 import TimeInput from '../config/TimeInput'
 import StringList from '../config/StringList'
 import { invoke } from '@tauri-apps/api'
+import { LuBarChart3, LuSettings } from 'react-icons/lu'
 
 type Props = {
     className?: string,
@@ -107,37 +108,37 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
             <SlotBar botMode="farming" config={config} onChange={onChange} />
             {/* DEBUG */}
             <YesNoModal isShowing={resetSlotYesNo.isShown} hide={resetSlotYesNo.close}
-                title={<h4>Confirm slot reset this action is irreversible</h4>}
+                title={<h4>Reset every slot on all bars?</h4>}
                 onYes={() => {onChange({ ...config, slot_bars: createSlotBars() })}}/>
             <Modal isShowing={debugModal.isShown} hide={debugModal.close} title={<h4>Settings</h4>} body={
                 <ConfigTable>
                     <ConfigTableRow
                         label={<ConfigLabel name="Mobs detection" helpText="" />}
-                        item={<button onClick={mobsNameDebugModal.open}>⚙️</button>}
+                        item={<button onClick={mobsNameDebugModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Avoidances" helpText="" />}
-                        item={<button onClick={obstacleAvoidanceDebugModal.open}>⚙️</button>}
+                        item={<button onClick={obstacleAvoidanceDebugModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Duo with healer" helpText="Coordinate with a second Neuz running Support mode on this PC" />}
-                        item={<button onClick={duoModal.open}>⚙️</button>}
+                        item={<button onClick={duoModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Monster names" helpText="Read monster names from the screen to skip giants and pick which monsters to attack" />}
-                        item={<button onClick={namesModal.open}>⚙️</button>}
+                        item={<button onClick={namesModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Stay in area" helpText="Walk back when the bot drifts too far from where it was engaged" />}
-                        item={<button onClick={areaModal.open}>⚙️</button>}
+                        item={<button onClick={areaModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Giant & violet flee" helpText="Run away when a violet or giant gets close" />}
-                        item={<button onClick={fleeModal.open}>⚙️</button>}
+                        item={<button onClick={fleeModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="On death event" helpText="" />}
-                        item={<button onClick={onDeathModal.open}>⚙️</button>}
+                        item={<button onClick={onDeathModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Interval between buffs" helpText="" />}
@@ -150,15 +151,15 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
 
                     <ConfigTableRow
                         label={<ConfigLabel name="Record screenshots" helpText="Saves one game frame per second for 60 seconds, plus what the bot detected in each, so problems can be checked offline. The bot must be engaged (running)." />}
-                        item={<button onClick={toggleRecording}>{recordingLeft > 0 ? `⏹ Stop (${recordingLeft}s)` : '⏺ Record'}</button>}
+                        item={<button onClick={toggleRecording}>{recordingLeft > 0 ? `Stop (${recordingLeft}s)` : 'Record'}</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Recordings folder" helpText="Zip a recording folder and send it to get detection fixed" />}
-                        item={<button onClick={() => invoke('open_recordings_folder')}>📁</button>}
+                        item={<button onClick={() => invoke('open_recordings_folder')}>Open</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Reset all slots" helpText="" />}
-                        item={<button onClick={resetSlotYesNo.open}>⚙️</button>}
+                        item={<button onClick={resetSlotYesNo.open}>Edit</button>}
                     />
                 </ConfigTable>
             }/>
@@ -306,7 +307,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                             item={<button onClick={() => {
                                 selectedMobType.current = 0
                                 mobsColorsDebugModal.open()
-                            }}>⚙️</button>}
+                            }}>Edit</button>}
                         />
                         <ConfigTableRow
                             layout="v"
@@ -314,7 +315,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                             item={<button onClick={() => {
                                 selectedMobType.current = 1
                                 mobsColorsDebugModal.open()
-                            }}>⚙️</button>}
+                            }}>Edit</button>}
                         />
                         <ConfigTableRow
                             layout="v"
@@ -356,8 +357,8 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
             <Modal isShowing={debugWarningModal.isShown} hide={debugWarningModal.close}
             title={<h4>WARNING - Debug mode </h4>} body={
                 <div className='modalCenteredContent'>
-                    <h1>Warning !</h1>
-                    <h2>For advanced users ONLY ! If something went wrong after you set something don't need to cry just reset your profile</h2>
+                    <p><strong>Advanced settings.</strong></p>
+                    <p>These change how monsters are detected. If farming stops working after a change, reset the profile from the launcher.</p>
                 </div>
             }/>
             {/* DEBUG END */}
@@ -453,18 +454,16 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
             {info && (
                 <div className="info">
                     <div className="row">
-                        <div>State: { botState }</div>
+                        <span className="row__label">Target detection</span>
+                        <BooleanSlider value={!config.is_stop_fighting} onChange={() => onChange?.({ ...config, is_stop_fighting: !config.is_stop_fighting })} />
                     </div>
                     <div className="row">
-                        <div>Target's detection mode: { config.is_stop_fighting? "🛑" : "✅" }</div>
+                        <span className="row__label">Botting time</span>
+                        <span className="row__value">{botStopWatch?.toString() ?? "00:00:00:000"}</span>
                     </div>
-                    <button className="btn sm"
-                            onClick={e => onChange?.({ ...config, is_stop_fighting: !config.is_stop_fighting })} >
-                            Detection 🎯
-                    </button>
-                    <div className="row">
-                        <button className="btn sm" onClick={statsModal.open}>Stats 📊</button>
-                        <button className="btn sm" onClick={debugModal.open}>Settings ⚙️</button>
+                    <div className="row row--actions">
+                        <button className="btn sm" onClick={statsModal.open}><LuBarChart3 size={13} />Stats</button>
+                        <button className="btn sm" onClick={debugModal.open}><LuSettings size={13} />Settings</button>
                     </div>
                 </div>
             )}
@@ -473,7 +472,15 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
 }
 
 export default styled(FarmingConfig)`
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    & > :empty {
+        display: none;
+    }
+
     & .modalCenteredContent {
-        text-align: center;
+        color: var(--text-muted);
     }
 `

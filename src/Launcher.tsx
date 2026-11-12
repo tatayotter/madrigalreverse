@@ -1,67 +1,13 @@
-import { useReducer, useState, useMemo, useRef, useEffect } from 'react'
+import { useReducer, useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api'
-import { sample } from 'lodash'
 import styled from 'styled-components'
 
-import FlyffLogo from './assets/msc_dark.png'
-import LauncherBackground from './assets/launcher_background_ice.png'
-import LauncherBackground2 from './assets/launcher_background.png'
 import MissionControl from './MissionControl'
-import { randomNumberInRange } from './components/utils/RandomInt'
 import useModal from './components/utils/UseModal'
 import { getVersion } from '@tauri-apps/api/app'
 import YesNoModal from './components/YesNoModal'
-import ConfigLabel from './components/config/ConfigLabel'
-import ConfigTableRow from './components/config/ConfigTableRow'
-import ConfigPanel from './components/config/ConfigPanel'
-import ConfigTable from './components/config/ConfigTable'
-import ProfileDisplay from './components/ProfileDisplay'
 import TextInput from './components/config/TextInput'
-
-const launcherBackgrounds = [LauncherBackground, LauncherBackground2]
-const Greetings = [
-    '😭 Real Market trading is destroying our game 😭',
-    'Gala, if you see this, hire me',
-    'I am a bot, I am a bot, I am a bot',
-    'Gala vs Computer Vision',
-    'Not a virus, guaranteed',
-    'Neuz.exe',
-    'Remember sunkist?',
-    'Select individuals only',
-    '...you do the math',
-    'Vampire Empire',
-    'Certified Based',
-    'I am not a bot',
-    'My french fries are made out of Gpotatoes',
-    'Plz don\'t kill me',
-    'Plz don\'t ban me',
-    'Gib me a star on github',
-    'Why p2w when you can bot',
-    'Chad botter vs virgin p2w user',
-    'Do you even grind bro',
-    'Why waste time with farming',
-    'Why waste time when you can bot',
-    'Bot & Chill',
-    'Don\'t like bots? Don\t play the game',
-    'Ich chill bei Bangs',
-    'Gala sued me for my pserver 😥',
-    'Can be bought with 0 BTC 👍',
-    'Free is always best',
-    '/say me',
-    'MPL licensed',
-    'Can you buff me pls?',
-    'Plz res me',
-    'Smoke ants',
-    'Madrigal Street Capital',
-    'Madrigal Street Cartel',
-    'Madrigal Street Casino',
-    'Madrigal Street Chinafarming',
-    'Madrigal Street Cocaine',
-    'Madrigal Skooma Cartel',
-    'Do you remember CFlyff',
-    'Sly was here',
-    '夢想飛飛',
-]
+import { LuCopy, LuPencil, LuPlay, LuPlus, LuRefreshCw, LuRotateCcw, LuTrash2 } from 'react-icons/lu'
 
 type Props = {
     className?: string,
@@ -70,7 +16,6 @@ type Props = {
 const Launcher = ({ className }: Props) => {
     const [hasEnteredMainLoop, enterMainLoop] = useReducer(() => true, false);
     const [isLaunched, setIsLaunched] = useState(false)
-    const greeting = useMemo(() => sample(Greetings), []);
 
     const [currentVersion, setCurrentVersion] = useState("NaN")
     const lastVersion = useRef("NaN")
@@ -86,14 +31,17 @@ const Launcher = ({ className }: Props) => {
 
     const [profileId, setPID] = useState<string>("")
     const [idList, setList] = useState<string[]>(["DEFAULT"])
-    const [currentPage,setPage] = useState(1)
     const [newProfile,setNewProfile] = useState("")
 
-    const launch = () => {
-        if (!hasEnteredMainLoop && profileId !== "" ) {
+    const hasProfile = profileId !== ""
+    const sortedProfiles = [...idList].sort((a, b) => a.localeCompare(b))
+
+    const launch = (pid: string = profileId) => {
+        if (!hasEnteredMainLoop && pid !== "" ) {
+            setPID(pid)
             enterMainLoop()
-            invoke('create_window',{profileId: profileId}).then(()=> {
-                invoke('start_bot',{profileId: profileId}).then(()=> {setIsLaunched(true)})
+            invoke('create_window',{profileId: pid}).then(()=> {
+                invoke('start_bot',{profileId: pid}).then(()=> {setIsLaunched(true)})
             })
 
         }
@@ -134,12 +82,11 @@ const Launcher = ({ className }: Props) => {
     return (
             <div className={className}>
                 <YesNoModal isShowing={updateModal.isShown} hide={updateModal.close}
-                    title={<h4>Update available!</h4>}
+                    title={<h4>Update available</h4>}
                     body={
                         <>
-                            <p>Version V{lastVersion.current} is available! </p>
-                            <p>You're currently using V{currentVersion}.</p>
-                            <p>Do you want to open download page ?</p>
+                            <p>Version {lastVersion.current} is available (you have {currentVersion}).</p>
+                            <p>Open the download page?</p>
                         </>
                     }
                     onYes={() => {window.open("https://github.com/MadrigalStreetCartel/neuz/releases/Neuz-v" + lastVersion.current)}}
@@ -160,7 +107,7 @@ const Launcher = ({ className }: Props) => {
                 />
 
                 <YesNoModal isShowing={renameProfileModal.isShown} hide={renameProfileModal.close}
-                    title={<h4>Rename profile {profileId?.replaceAll("profile_", "")}</h4>}
+                    title={<h4>Rename {profileId}</h4>}
                     body={
                         <TextInput unit='#' value={newProfile} onChange={(value) => {setNewProfile(value) }} />
                     }
@@ -174,7 +121,7 @@ const Launcher = ({ className }: Props) => {
                 />
 
                 <YesNoModal isShowing={copyProfileModal.isShown} hide={copyProfileModal.close}
-                    title={<h4>Profile {profileId?.replaceAll("profile_", "")} will be copied</h4>}
+                    title={<h4>Copy {profileId} as</h4>}
                     body={
                         <TextInput unit='#' value={newProfile} onChange={(value) => {setNewProfile(value) }} />
                     }
@@ -188,22 +135,21 @@ const Launcher = ({ className }: Props) => {
                 />
 
                 <YesNoModal isShowing={delProfileModal.isShown} hide={delProfileModal.close}
-                    title={<h4>Do you want to delete this profile ?</h4>}
+                    title={<h4>Delete {profileId}?</h4>}
                     body={
-                       <h3>This action cant be undone</h3>
+                       <p>This can't be undone.</p>
                     }
                     onYes={() => {
                         invoke('remove_profile', {profileId: profileId})
                         setList((oldValue) => oldValue.filter((filtred) => filtred.replaceAll("profile_","") !== profileId))
-                        setPage(1)
                         setPID("")
                     }}
                 />
 
                 <YesNoModal isShowing={resetProfileModal.isShown} hide={resetProfileModal.close}
-                    title={<h4>Do you want to reset this profile ?</h4>}
+                    title={<h4>Reset {profileId} to defaults?</h4>}
                     body={
-                       <h3>This action cant be undone</h3>
+                       <p>This can't be undone.</p>
                     }
                     onYes={() => {
                         invoke('reset_profile', {profileId: profileId})
@@ -211,53 +157,52 @@ const Launcher = ({ className }: Props) => {
                 />
 
                 {!isLaunched && (
-                    <div className="container">
-                        <div className="logo-container">
-                            <img className="logo" alt="Flyff Universe Logo" src={FlyffLogo} />
-                            <span className="greet">{greeting}</span>
-                        </div>
-                        <ConfigPanel>
-                            <ConfigTable>
-                                <ConfigTableRow
-                                    layout="v"
-                                    label={<ConfigLabel name={`Profiles${profileId !== "" ? ` | Current : ${profileId}` :""}`} helpText={"Select/create/edit/copy you're profiles."} />}
-                                    item={
-                                        <>
-                                            <div style={{display: "inline"}}>
-                                                <div className="btn m" onClick={newProfileModal.open}>New</div>
-                                                <div className="btn m" onClick={()=> {profileId !== null && renameProfileModal.open()}}>Rename</div>
-                                                <div className="btn m" onClick={()=> {profileId !== null && copyProfileModal.open()}}>Copy</div>
-                                                <div className="btn m" onClick={()=> {profileId !== null && delProfileModal.open()}}>Remove</div>
-                                                <div className="btn m" onClick={()=> {profileId !== null && resetProfileModal.open()}}>Reset</div>
-                                                <div className="btn m" onClick={refreshProfiles}>Refresh</div>
-                                            </div>
+                    <div className="launcher">
+                        <header className="launcher__header">
+                            <div className="brand">
+                                <span className="brand__name">Neuz</span>
+                                <span className="brand__sub">Profile manager</span>
+                            </div>
+                            {currentVersion !== "NaN" && <span className="version">v{currentVersion}</span>}
+                        </header>
 
-                                            <table id="profiles">
-                                                {idList.sort((a,b) => (a > b) ? 1 : ((b > a) ? -1 : 0)).slice( (currentPage -1) * 4,  (currentPage -1) * 4 + 4).map((pid, index) => <>
-                                                    <tr key={index} className={pid.replaceAll("profile_","") === profileId ? "selected" : ""} onClick={() => setPID(pid.replaceAll("profile_",""))}>
-                                                        <td key={index}>{(pid.startsWith("profile_")? pid.replace("profile_","") : pid)}</td>
-                                                    </tr>
-                                                </>)}
-                                                <div style={{display:"flex", textAlign: "center", alignItems: "center",fontSize: "1rem" }}>
-                                                    <div  style={{width: "50%", fontSize: "1.5rem"}} className="btn sm" onClick={()=> {setPage((current) => current === 1? current: current -1)}}>{"<-"}</div>
-                                                    Page: {currentPage}/{Math.ceil(idList.length / 4)}
-                                                    <div  style={{width: "50%", fontSize: "1.5rem"}} className="btn sm" onClick={()=> {setPage((current) => current === Math.ceil(idList.length / 4)? current: current +1)}}>{"->"}</div>
-                                                </div>
-                                            </table>
-                                        </>
-                                    }
-                                />
-                            </ConfigTable>
-                        </ConfigPanel>
+                        <section className="panel">
+                            <div className="panel__head">
+                                <span className="panel__title">Profiles</span>
+                                <button className="btn sm ghost" title="Reload the profile list" onClick={refreshProfiles}><LuRefreshCw size={13} /></button>
+                            </div>
 
-                        <div className="btn" onClick={launch}>Play</div>
+                            <ul className="profile-list">
+                                {sortedProfiles.map((pid) => {
+                                    const name = pid.replaceAll("profile_", "")
+                                    return (
+                                        <li key={pid}
+                                            className={name === profileId ? "selected" : ""}
+                                            onClick={() => setPID(name)}
+                                            onDoubleClick={() => launch(name)}
+                                            title="Double-click to start">
+                                            {name}
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+
+                            <div className="profile-actions">
+                                <button className="btn sm" onClick={newProfileModal.open}><LuPlus size={13} />New</button>
+                                <button className={`btn sm ${hasProfile ? "" : "disabled"}`} onClick={() => hasProfile && renameProfileModal.open()}><LuPencil size={13} />Rename</button>
+                                <button className={`btn sm ${hasProfile ? "" : "disabled"}`} onClick={() => hasProfile && copyProfileModal.open()}><LuCopy size={13} />Copy</button>
+                                <button className={`btn sm ${hasProfile ? "" : "disabled"}`} onClick={() => hasProfile && resetProfileModal.open()}><LuRotateCcw size={13} />Reset</button>
+                                <button className={`btn sm ${hasProfile ? "" : "disabled"}`} onClick={() => hasProfile && delProfileModal.open()}><LuTrash2 size={13} />Delete</button>
+                            </div>
+                        </section>
+
+                        <button className={`btn lg primary block ${hasProfile ? "" : "disabled"}`} onClick={() => launch()}>
+                            <LuPlay size={15} />{hasProfile ? `Start ${profileId}` : "Select a profile"}
+                        </button>
                     </div>
                 )}
                 {isLaunched && (
-                    <>
-                        <ProfileDisplay profileId={profileId?? ""} />
-                        <MissionControl currentVersion={currentVersion} lastVersion={lastVersion.current} />
-                    </>
+                    <MissionControl profileId={profileId} currentVersion={currentVersion} lastVersion={lastVersion.current} />
                 )}
 
             </div>
@@ -265,146 +210,112 @@ const Launcher = ({ className }: Props) => {
 }
 
 export default styled(Launcher)`
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
     width: 100vw;
     height: 100vh;
-    background-image: url(${launcherBackgrounds[randomNumberInRange(0,1)]});
-    background-attachment: fixed;
-    background-repeat: no-repeat;
-    background-position: center center;
-    background-size: cover;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
 
-    & .container {
+    & .launcher {
         display: flex;
         flex-direction: column;
-        align-items: center;
-        justify-content: space-around;
-        height: 100vh;
+        gap: 12px;
+        width: 100%;
+        max-width: 420px;
+        height: 100%;
+        margin: 0 auto;
+        padding: 20px 16px 16px;
     }
 
-    & .logo-container {
+    & .launcher__header {
         display: flex;
-        justify-content: center;
-        position: relative;
-        width: 100%;
-        background: hsla(203, 100%, 0%, .75);
-        backdrop-filter: blur(.5rem);
-        padding: 2rem;
-        box-shadow: 0 0 .1rem hsla(0,0%,0%,.5), 0 0 .5rem hsla(0,0%,0%,.5);
-        border-radius: 0.25rem;
+        align-items: baseline;
+        justify-content: space-between;
+    }
 
-        & .logo {
-            width: 100%;
-            padding: 0 0 2.5rem 0;
-            height: calc(25vh + 2rem);
-            max-height: 128px;
-            object-fit: scale-down;
-            opacity: .9;
-        }
+    & .brand {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+    }
 
-        @keyframes wiggle {
-            0% {
-                transform: scale(1) rotate(0deg);
+    & .brand__name {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -.01em;
+    }
+
+    & .brand__sub,
+    & .version {
+        color: var(--text-muted);
+        font-size: 12px;
+    }
+
+    & .panel {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+    }
+
+    & .panel__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 6px 6px 12px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    & .panel__title {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+
+    & .profile-list {
+        list-style: none;
+        margin: 0;
+        padding: 4px;
+        flex: 1;
+        overflow-y: auto;
+
+        & li {
+            display: flex;
+            align-items: center;
+            height: 32px;
+            padding: 0 10px;
+            border-radius: var(--radius);
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+
+            &:hover {
+                background: var(--surface-2);
             }
-            33% {
-                transform: scale(1.1) rotate(-1deg);
-            }
-            66% {
-                transform: scale(1.1) rotate(1deg);
-            }
-            100% {
-                transform: scale(1) rotate(0deg);
+
+            &.selected {
+                background: var(--accent-soft);
+                border-color: rgba(76, 141, 255, .35);
+                color: #fff;
             }
         }
+    }
 
-        & .greet {
-            position: absolute;
-            white-space: nowrap;
-            text-align: center;
-            font-size: 1.25rem;
-            color: white;
-            bottom: 1.5rem;
-            animation: wiggle 5s ease-in-out infinite;
+    & .profile-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px;
+        border-top: 1px solid var(--border);
+
+        & .btn {
+            flex: 1;
         }
-    }
-
-
-    & .btn {
-        cursor: pointer;
-        user-select: none;
-        padding: 1rem 1rem;
-        width: calc(min(500px, max(250px, 40vw)));
-        text-align: center;
-        border-radius: 0.25rem;
-        color: white;
-        background: hsla(203, 100%, 0%, .75);
-        backdrop-filter: blur(.5rem);
-        transition: all .1s linear;
-        box-shadow: 0 .1rem .1rem 0 hsla(0,0%,0%,1);
-        border: 1px solid hsl(0,0%,10%);
-        font-size: 1.5rem;
-
-        &:hover {
-            background: hsla(203, 100%, 45%, .5);
-            border: 1px solid hsl(0,0%,10%);
-            box-shadow: 0 .1rem .1rem 0 hsla(0,0%,0%,1), 0 .5rem 2rem 0 hsla(0,0%,0%,.25), 0 2rem 2rem 0 hsla(0,0%,0%,.25);
-        }
-    }
-
-    & .sm {
-        padding: 0.25rem 0.25rem;
-        align-self: center;
-        width: 60%;
-        font-size: 1.25rem;
-    }
-
-    & .m {
-        padding: 0.5rem 0.5rem;
-        align-self: center;
-        width: 100%;
-        font-size: 1rem;
-    }
-
-    & #profiles {
-        margin-left: 20px;
-        font-family: Arial, Helvetica, sans-serif;
-        border-collapse: collapse;
-        width: 100%;
-    }
-
-    & #profiles td, #profiles th {
-        padding: 15px;
-    }
-
-    & #profiles tr {
-        background: hsla(203, 100%, 0%, .75);
-        backdrop-filter: blur(.5rem);
-        text-align: center;
-        border-bottom: 1px solid;
-    }
-    & #profiles tr:nth-child(even){
-        background: hsla(203, 100%, 0%, .75);
-        backdrop-filter: blur(.5rem);
-    }
-
-    & #profiles tr:hover {
-        background: hsl(0deg 0% 30% / 75%) !important;
-        color: black;
-    }
-
-    & #profiles .selected {
-        background: hsl(0deg 0% 89% / 75%) !important;
-        color: black;
-    }
-
-    & #profiles th {
-        padding-top: 12px;
-        padding-bottom: 12px;
-        text-align: left;
-        background-color: #04AA6D;
-        color: white;
     }
 `

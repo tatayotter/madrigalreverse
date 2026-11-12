@@ -1,6 +1,43 @@
+/* Neuz control window theme. Every component reads these tokens. */
+:root {
+  --bg: #0e1014;
+  --surface: #16191f;
+  --surface-2: #1d2129;
+  --surface-3: #262b35;
+  --border: #2a303b;
+  --border-strong: #3a4250;
+  --text: #e7e9ee;
+  --text-muted: #8a93a3;
+  --text-faint: #5d6575;
+  --accent: #4c8dff;
+  --accent-hover: #6a9fff;
+  --accent-soft: rgba(76, 141, 255, .14);
+  --success: #2fbf71;
+  --success-hover: #3dd282;
+  --success-soft: rgba(47, 191, 113, .14);
+  --danger: #e5484d;
+  --danger-hover: #f05b60;
+  --danger-soft: rgba(229, 72, 77, .14);
+  --warning: #f0a83a;
+  --warning-soft: rgba(240, 168, 58, .14);
+  --radius: 6px;
+  --radius-lg: 8px;
+  --font: "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+html, body, #root, .App {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   user-select: none;
@@ -10,7 +47,196 @@ body {
   box-sizing: border-box;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 600;
 }
+
+h4 {
+  font-size: 14px;
+}
+
+p {
+  margin: 0 0 .4rem 0;
+}
+
+a {
+  color: var(--accent);
+}
+
+code {
+  font-family: var(--mono);
+}
+
+input, textarea, button, select {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* Thin, quiet scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.btn:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.btn.sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.btn.m {
+  height: 30px;
+  padding: 0 12px;
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.btn.lg {
+  height: 38px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.btn.success {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.btn.success:hover {
+  background: var(--success-hover);
+  border-color: var(--success-hover);
+}
+
+.btn.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn.danger:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+.btn.ghost:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn.disabled,
+.btn:disabled {
+  opacity: .45;
+  pointer-events: none;
+}
+
+/* Plain buttons inside settings tables ("open sub-settings" buttons) */
+table button:not(.btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+table button:not(.btn):hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+/* Status pill shared by the header, compact view and stats */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--surface-3);
+}
+.badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.badge--searching { color: var(--warning); background: var(--warning-soft); }
+.badge--fighting  { color: var(--danger);  background: var(--danger-soft); }
+.badge--healing   { color: var(--success); background: var(--success-soft); }
+.badge--ready     { color: var(--accent);  background: var(--accent-soft); }
+.badge--dead      { color: var(--text-faint); background: var(--surface-2); }
+.badge--idle      { color: var(--text-muted); background: var(--surface-3); }
