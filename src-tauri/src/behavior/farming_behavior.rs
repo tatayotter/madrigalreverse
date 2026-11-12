@@ -742,6 +742,7 @@ impl FarmingBehavior<'_> {
     }
 
     fn send_slot(&mut self, slot_index: (usize, usize)) {
+        slog::debug!(self.logger, "Pressing slot"; "bar" => format!("F{}", slot_index.0 + 1), "slot" => slot_index.1);
         // Send keystroke for first slot mapped to pill
         send_slot_eval(self.window, slot_index.0, slot_index.1);
         // Update usage last time
@@ -801,11 +802,15 @@ impl FarmingBehavior<'_> {
 
             // Check MP
             let mp_stat = Some(image.client_stats.mp.value);
-            self.get_slot_for(config, mp_stat, SlotType::MpRestorer, true);
+            if let Some(slot) = self.get_slot_for(config, mp_stat, SlotType::MpRestorer, true) {
+                slog::debug!(self.logger, "Used MP restorer"; "mp" => image.client_stats.mp.value, "slot" => format!("F{} {}", slot.0 + 1, slot.1));
+            }
 
             // Check FP
             let fp_stat = Some(image.client_stats.fp.value);
-            self.get_slot_for(config, fp_stat, SlotType::FpRestorer, true);
+            if let Some(slot) = self.get_slot_for(config, fp_stat, SlotType::FpRestorer, true) {
+                slog::debug!(self.logger, "Used FP restorer"; "fp" => image.client_stats.fp.value, "slot" => format!("F{} {}", slot.0 + 1, slot.1));
+            }
         }
     }
 
