@@ -17,7 +17,6 @@ import YesNoModal from '../YesNoModal'
 import { MsFormat, StopWatchValues } from '../utils/StopWatch'
 import { DefaultValuesChecker } from '../utils/DefaultValuesChecker'
 import TimeInput from '../config/TimeInput'
-import TextInput from '../config/TextInput'
 import StringList from '../config/StringList'
 
 type Props = {
@@ -41,7 +40,6 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     const resetSlotYesNo = useModal(debugModal)
     const obstacleAvoidanceDebugModal = useModal(debugModal)
     const fleeModal = useModal(debugModal)
-    const discordModal = useModal(debugModal)
     const namesModal = useModal(debugModal)
 
     const selectedMobType = useRef(0)
@@ -108,10 +106,6 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                     <ConfigTableRow
                         label={<ConfigLabel name="Giant & violet flee" helpText="Run away when a violet or giant gets close" />}
                         item={<button onClick={fleeModal.open}>⚙️</button>}
-                    />
-                    <ConfigTableRow
-                        label={<ConfigLabel name="Discord alerts" helpText="Get a Discord message on death, danger or disconnect" />}
-                        item={<button onClick={discordModal.open}>⚙️</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="On death event" helpText="" />}
@@ -215,30 +209,6 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         layout="v"
                         label={<ConfigLabel name="Never attack these" helpText="One monster name per line, then press Apply." />}
                         item={<StringList messages={config.monster_blacklist} onChange={value => onChange?.({ ...config, monster_blacklist: value })} />}
-                    />
-                </ConfigTable>
-            }/>
-            <Modal isShowing={discordModal.isShown} hide={discordModal.close} title={<h4>Discord alerts</h4>} body={
-                <ConfigTable>
-                    <ConfigTableRow
-                        layout="v"
-                        label={<ConfigLabel name="Webhook URL" helpText="Discord channel > Edit channel > Integrations > Webhooks > New webhook > Copy URL. Leave empty to turn alerts off." />}
-                        item={<TextInput value={config.discord_webhook_url} onChange={value => onChange({...config, discord_webhook_url: value})} />}
-                    />
-                    <ConfigTableRow
-                        layout="v"
-                        label={<ConfigLabel name="On death" helpText="" />}
-                        item={<BooleanSlider value={config.discord_notify_death ?? true} onChange={value => onChange?.({ ...config, discord_notify_death: value })} />}
-                    />
-                    <ConfigTableRow
-                        layout="v"
-                        label={<ConfigLabel name="On giant / violet nearby" helpText="At most one message per minute" />}
-                        item={<BooleanSlider value={config.discord_notify_danger ?? true} onChange={value => onChange?.({ ...config, discord_notify_danger: value })} />}
-                    />
-                    <ConfigTableRow
-                        layout="v"
-                        label={<ConfigLabel name="On disconnect" helpText="When the bot disconnects because of death, AFK or no monsters found" />}
-                        item={<BooleanSlider value={config.discord_notify_disconnect ?? true} onChange={value => onChange?.({ ...config, discord_notify_disconnect: value })} />}
                     />
                 </ConfigTable>
             }/>

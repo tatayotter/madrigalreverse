@@ -118,10 +118,6 @@ export type FarmingConfigModel = Partial<{
     giant_mobs_colors: number[],
     giant_tolerence: number,
 
-    discord_webhook_url: string,
-    discord_notify_death: boolean,
-    discord_notify_danger: boolean,
-    discord_notify_disconnect: boolean,
 
     name_reading: boolean,
     monster_whitelist: string[],

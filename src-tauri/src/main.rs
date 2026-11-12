@@ -6,7 +6,6 @@ mod image_analyzer;
 mod ipc;
 mod monster_db;
 mod movement;
-mod notifications;
 mod ocr;
 mod platform;
 mod utils;
@@ -290,14 +289,6 @@ async fn create_window(profile_id: String, app_handle: tauri::AppHandle) {
     drop(main_window.set_title(format!("{} Neuz | MadrigalStreetCartel", profile_id).as_str()));
     //window.once_global("tauri://close-requested", move |_| app_handle.restart());
 }
-/// Discord webhook for the current mode (alerts are only configured for farming for now).
-fn discord_webhook(config: &BotConfig, check: fn(&ipc::FarmingConfig) -> bool) -> Option<String> {
-    match config.mode() {
-        Some(BotMode::Farming) if check(config.farming_config()) =>
-            config.farming_config().discord_webhook_url(),
-        _ => None,
-    }
-}
 
 fn should_disconnect_on_death(config: &BotConfig) -> bool {
     return match config.mode().unwrap() {
@@ -509,10 +500,6 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
 
                 //Regardless if it's alive or not, if the bot is inactive should be dcd
                 if frontend_info_mut.is_afk_ready_to_disconnect() {
-                    notifications::send_discord_blocking(
-                        discord_webhook(config, |c| c.discord_notify_disconnect()),
-                        "🔌 Character was idle too long, disconnecting."
-                    );
                     app_handle.exit(0);
                     return;
                 }
@@ -534,18 +521,8 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                     AliveState::Dead => {
                         if frontend_info_mut.is_alive() {
                             let should_disconnect = should_disconnect_on_death(config);
-                            let webhook = discord_webhook(config, |c| c.discord_notify_death());
                             if should_disconnect {
-                                notifications::send_discord_blocking(
-                                    webhook,
-                                    "💀 Your character died. Disconnecting."
-                                );
                                 app_handle.exit(0);
-                            } else {
-                                notifications::send_discord(
-                                    webhook,
-                                    "💀 Your character died. Waiting for a revive."
-                                );
                             }
 
                             frontend_info_mut.set_is_alive(false);
