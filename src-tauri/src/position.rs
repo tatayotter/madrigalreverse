@@ -137,7 +137,7 @@ pub fn read(image: &ImageBuffer, logger: &Logger) -> Option<Position> {
 pub const REGION_COLOR: [u8; 3] = [255, 185, 0];
 const REGION_TOLERANCE: u8 = 40;
 /// Where the map's top bar text sits in the 800x600 client.
-const REGION_AREA: (u32, u32, u32, u32) = (100, 25, 420, 58);
+const REGION_AREA: (u32, u32, u32, u32) = (100, 25, 470, 58);
 
 /// Find the region name (the orange word group in the map's top bar), without the ▼ after it.
 pub fn find_region(image: &ImageBuffer) -> Option<Bounds> {
