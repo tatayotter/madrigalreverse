@@ -122,6 +122,9 @@ export type FarmingConfigModel = Partial<{
 
     area_radius: number,
     area_check_interval: number,
+    revive_return: boolean,
+    revive_rest: number,
+    revive_max_distance: number,
 
     giant_flee: boolean,
     flee_radius: number,

@@ -11,6 +11,7 @@ mod movement;
 mod ocr;
 mod position;
 mod navigator;
+mod revive;
 mod platform;
 mod recorder;
 mod utils;
@@ -29,7 +30,7 @@ use crate::{
     data::AliveState,
     ipc::{ BotConfig, BotMode },
     movement::MovementAccessor,
-    platform::{ eval_send_key, KeyMode },
+    platform::{ eval_send_key, eval_simple_click, KeyMode },
     utils::Timer,
 };
 
@@ -344,7 +345,11 @@ async fn create_window(profile_id: String, app_handle: tauri::AppHandle) {
 
 fn should_disconnect_on_death(config: &BotConfig) -> bool {
     return match config.mode().unwrap() {
-        BotMode::Farming => config.farming_config().on_death_disconnect(),
+        // Revive and return wins over disconnect
+        BotMode::Farming => {
+            let farming = config.farming_config();
+            farming.on_death_disconnect() && !farming.revive_return()
+        }
         BotMode::Support => config.support_config().on_death_disconnect(),
         BotMode::AutoShout => true,
     };
@@ -432,6 +437,7 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
         // Diagnostics: log state changes once instead of every frame
         let mut last_alive_state: Option<AliveState> = None;
         let mut last_capture_warn: Option<std::time::Instant> = None;
+        let mut last_revive_press: Option<std::time::Instant> = None;
         let mut frontend_info: Arc<RwLock<FrontendInfo>> = Arc::new(
             RwLock::new(FrontendInfo::deserialize_or_default())
         );
@@ -584,6 +590,9 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                                 // close chat after beign rez
                                 eval_send_key(&window, "Escape", KeyMode::Press);
                                 std::thread::sleep(Duration::from_millis(1000));
+                                if mode == BotMode::Farming {
+                                    farming_behavior.on_revived(config.farming_config());
+                                }
                             }
                         }
                         false
@@ -610,8 +619,29 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                             // Send infos to frontend
                             send_info(&frontend_info.read());
                         } else {
-                            eval_send_key(&window, "Enter", KeyMode::Press);
-                            std::thread::sleep(Duration::from_millis(500));
+                            // Resurrection window: click Lodestar (nearest town). Without
+                            // it on screen, Enter as before.
+                            let lodestar = image_analyzer.image().and_then(revive::find_lodestar);
+                            let log_due = last_revive_press.map_or(true, |t| t.elapsed() >= Duration::from_secs(10));
+                            match lodestar {
+                                Some(point) => {
+                                    if log_due {
+                                        slog::info!(logger, "Dead: clicking Lodestar to revive in the nearest town"; "x" => point.x, "y" => point.y);
+                                    }
+                                    eval_simple_click(&window, point);
+                                    std::thread::sleep(Duration::from_millis(1500));
+                                }
+                                None => {
+                                    if log_due {
+                                        slog::info!(logger, "Dead: Resurrection window not found, pressing Enter");
+                                    }
+                                    eval_send_key(&window, "Enter", KeyMode::Press);
+                                    std::thread::sleep(Duration::from_millis(500));
+                                }
+                            }
+                            if log_due {
+                                last_revive_press = Some(std::time::Instant::now());
+                            }
                         }
                         true
                     }
