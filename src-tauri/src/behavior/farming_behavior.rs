@@ -97,6 +97,8 @@ pub struct FarmingBehavior<'a> {
     /// Couldn't get back after a revive: stay put until the next Engage
     stranded: bool,
     last_stranded_log: Option<Instant>,
+    /// Tries at saving the farming spot while dead (Engage pressed while dead)
+    dead_spot_tries: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +159,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             return_attempts: 0,
             stranded: false,
             last_stranded_log: None,
+            dead_spot_tries: 0,
         }
     }
 
@@ -175,6 +178,7 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         self.return_pending = false;
         self.return_attempts = 0;
         self.stranded = false;
+        self.dead_spot_tries = 0;
         self.stop(_config);
     }
 
@@ -647,6 +651,48 @@ impl FarmingBehavior<'_> {
                 // Let it come to a stop before reading the position
                 Wait(dur::Fixed(300)),
             ]),
+        }
+    }
+
+    /// Called by the main loop while dead, before reviving. If the farming spot isn't
+    /// saved yet (Engage was pressed while dead, or we died right away), save where we
+    /// died, so Revive and return has somewhere to go back to.
+    pub fn save_spot_while_dead(&mut self, config: &FarmingConfig, image: &mut ImageAnalyzer) {
+        use crate::movement::prelude::*;
+        if !config.revive_return() || self.home.is_some() || self.dead_spot_tries >= 2 {
+            return;
+        }
+        self.dead_spot_tries += 1;
+        // Same as read_position, but no Escape at the end: it could close the
+        // Resurrection window. The chat closes after reviving anyway.
+        play!(self.movement => [
+            PressKey("Enter"),
+            Wait(dur::Fixed(150)),
+            Type("/position".to_string()),
+            Wait(dur::Fixed(100)),
+            PressKey("Enter"),
+            Wait(dur::Fixed(450)),
+        ]);
+        image.capture_window(self.logger);
+        let pos = image.image().and_then(|img| position::read(img, self.logger));
+        // If Enter revived us instead, this is the town, not where we died
+        let snapshot = image.clone();
+        image.client_stats.update(&snapshot, self.logger);
+        if image.client_stats.is_alive != AliveState::Dead {
+            slog::warn!(self.logger, "Revived before the position could be read, so the farming spot isn't known");
+            self.dead_spot_tries = 2;
+            return;
+        }
+        match pos {
+            Some(pos) => {
+                slog::info!(self.logger, "Farming spot saved (where you died)"; "x" => pos.x, "z" => pos.z);
+                self.home = Some(pos);
+                self.home_region = None;
+                self.last_position = Some(pos);
+            }
+            None => {
+                slog::warn!(self.logger, "Couldn't read the position while dead"; "hint" => "keep the chat box visible and uncovered");
+            }
         }
     }
 

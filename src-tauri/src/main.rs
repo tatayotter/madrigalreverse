@@ -619,6 +619,10 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                             // Send infos to frontend
                             send_info(&frontend_info.read());
                         } else {
+                            // No farming spot yet (Engage pressed while dead): save this one first
+                            if mode == BotMode::Farming {
+                                farming_behavior.save_spot_while_dead(config.farming_config(), &mut image_analyzer);
+                            }
                             // Resurrection window: click Lodestar (nearest town). Without
                             // it on screen, Enter as before.
                             let lodestar = image_analyzer.image().and_then(revive::find_lodestar);
