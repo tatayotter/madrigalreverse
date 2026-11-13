@@ -564,7 +564,16 @@ impl FarmingBehavior<'_> {
         let what = if how == Travel::Fly { "Flying" } else { "Walking" };
         let mut before = start;
         let mut step_ms = 600.min(nav.walk_ms(start.distance_to(&home)));
-        play!(self.movement => [HoldKeyFor("W", dur::Fixed(step_ms)),]);
+        if how == Travel::Fly {
+            // Take off: climb a bit (W) while moving so we clear fences and trees
+            play!(self.movement => [
+                PressKey("Space"),
+                HoldKeyFor("W", dur::Fixed(1200)),
+                PressKey("Space"),
+                Wait(dur::Fixed(300)),
+            ]);
+        }
+        self.go_forward(how, step_ms);
         let mut stuck = 0;
 
         for _ in 0..max_steps {
@@ -588,14 +597,23 @@ impl FarmingBehavior<'_> {
                 }
                 let key = ["A", "D"].choose(&mut self.rng).copied().unwrap_or("A");
                 slog::debug!(self.logger, "Not moving, going around"; "how" => what, "moved" => moved);
-                // Walking: jump sideways. Flying: hold Space to climb over it.
-                let hold = if how == Travel::Fly { 1500 } else { 800 };
-                play!(self.movement => [
-                    HoldKeyFor(key, dur::Fixed(300)),
-                    HoldKeys(vec!["W", "Space"]),
-                    Wait(dur::Fixed(hold)),
-                    ReleaseKeys(vec!["Space", "W"]),
-                ]);
+                match how {
+                    // Walking: jump sideways
+                    Travel::Walk => play!(self.movement => [
+                        HoldKeyFor(key, dur::Fixed(300)),
+                        HoldKeys(vec!["W", "Space"]),
+                        Wait(dur::Fixed(800)),
+                        ReleaseKeys(vec!["Space", "W"]),
+                    ]),
+                    // Flying: turn a little, then climb (W) while moving (Space)
+                    Travel::Fly => play!(self.movement => [
+                        HoldKeyFor(key, dur::Fixed(300)),
+                        PressKey("Space"),
+                        HoldKeyFor("W", dur::Fixed(1500)),
+                        PressKey("Space"),
+                        Wait(dur::Fixed(300)),
+                    ]),
+                }
                 before = pos;
                 step_ms = 800;
                 continue;
@@ -610,10 +628,26 @@ impl FarmingBehavior<'_> {
             step_ms = nav.walk_ms(dist);
             slog::debug!(self.logger, "On the way"; "how" => what, "distance" => dist, "step_ms" => step_ms, "turn_rate" => nav.turn_rate, "speed" => nav.speed);
             before = pos;
-            play!(self.movement => [HoldKeyFor("W", dur::Fixed(step_ms)),]);
+            self.go_forward(how, step_ms);
         }
         slog::warn!(self.logger, "Gave up on the way"; "how" => what, "steps" => max_steps);
         false
+    }
+
+    /// Move forward for `ms`. Walking: hold W. On the board: Space starts and stops
+    /// forward flight (W/S climb and dive there).
+    fn go_forward(&self, how: Travel, ms: u64) {
+        use crate::movement::prelude::*;
+        match how {
+            Travel::Walk => play!(self.movement => [HoldKeyFor("W", dur::Fixed(ms)),]),
+            Travel::Fly => play!(self.movement => [
+                PressKey("Space"),
+                Wait(dur::Fixed(ms)),
+                PressKey("Space"),
+                // Let it come to a stop before reading the position
+                Wait(dur::Fixed(300)),
+            ]),
+        }
     }
 
     /// Called by the main loop when the character comes back to life.

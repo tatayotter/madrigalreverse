@@ -14,7 +14,7 @@ Date format: `DD/MM/YYYY`
 - Positioning
     - Reads the character position by typing /position and reading the green reply in the chat box
     - Stay in area (Farming settings): remembers where (and in which region, read from the map) you pressed Engage and, between fights, walks back when farther than the radius. It learns turn speed and direction from its own movement. It pauses instead of walking when you are in another region or very far away (teleport, revive)
-    - Revive and return (Farming settings > On death): after dying, presses Enter to revive in town, rests (default 15s, recasting buffs), then gets on the board (Board slot) and flies back to where you pressed Engage, lands and walks the last bit. Without a Board slot it walks. It gives up and waits (instead of farming in town) past the max distance (default 8000) or after 4 failed tries. Overrides Disconnect on death while on
+    - Revive and return (Farming settings > On death): after dying, presses Enter to revive in town, rests (default 15s, recasting buffs), then gets on the board (Board slot) and flies back (Space starts/stops flying, A/D turn, W climbs over obstacles) to where you pressed Engage, lands and walks the last bit. Without a Board slot it walks. It gives up and waits (instead of farming in town) past the max distance (default 8000) or after 4 failed tries. Overrides Disconnect on death while on
 - Targeting
     - Red (aggressive) names are found and read by their bright red core, not only the dark letter edges, so they are actually prioritized
     - Max name width default 180 -> 260px: long names such as "Ghost of the Forgotten Prince" (183px) were thrown away
