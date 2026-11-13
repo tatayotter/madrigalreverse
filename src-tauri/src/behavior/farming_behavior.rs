@@ -636,6 +636,11 @@ impl FarmingBehavior<'_> {
         if info.map_or(false, |i| i.rank.is_dangerous()) {
             return false;
         }
+        // Yellow "You use Perfect Block." over our head and tooltips look like name tags
+        if info.is_none() && text.as_deref().map_or(false, is_game_message) {
+            slog::debug!(self.logger, "Not a monster, skipping"; "text" => text.as_deref().unwrap_or(""));
+            return false;
+        }
         match name {
             Some(name) => {
                 !blacklist.contains(&name) && (whitelist.is_empty() || whitelist.contains(&name))
@@ -919,6 +924,7 @@ impl FarmingBehavior<'_> {
                         self.rotation_movement_tries = 0;
                         return State::EnemyFound(*mob);
                     }
+                    self.avoided_bounds.push((mob.bounds.grow_by(5), Instant::now(), 3000));
                 }
             }
 
@@ -1279,5 +1285,27 @@ impl FarmingBehavior<'_> {
             (kill_per_minute, kill_per_hour),
             (elapsed_search_time.as_millis(), elapsed_time_to_kill.as_millis())
         )
+    }
+}
+
+/// Text that sits where name tags do but isn't a monster: skill messages over the
+/// character ("You use Perfect Block.") and tooltips ("Sex: Female").
+fn is_game_message(text: &str) -> bool {
+    let t = text.trim().to_lowercase();
+    t.starts_with("you ") || t.starts_with("you u") || t.contains(':')
+}
+
+#[cfg(test)]
+mod game_message_tests {
+    use super::is_game_message;
+
+    #[test]
+    fn skill_messages_and_tooltips_are_not_monsters() {
+        for t in ["You use Perfect Block.", "You us", "You u:", "You use Nature.", "Sex: Female"] {
+            assert!(is_game_message(t), "{t}");
+        }
+        for t in ["Ghost of the Forgotten Prince", "Young Lawolf", "Yetti", "Aibatt", "nce"] {
+            assert!(!is_game_message(t), "{t}");
+        }
     }
 }
