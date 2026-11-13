@@ -11,6 +11,7 @@ mod movement;
 mod ocr;
 mod position;
 mod navigator;
+mod revive;
 mod platform;
 mod recorder;
 mod utils;
@@ -29,7 +30,7 @@ use crate::{
     data::AliveState,
     ipc::{ BotConfig, BotMode },
     movement::MovementAccessor,
-    platform::{ eval_send_key, KeyMode },
+    platform::{ eval_send_key, eval_simple_click, KeyMode },
     utils::Timer,
 };
 
@@ -618,13 +619,29 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                             // Send infos to frontend
                             send_info(&frontend_info.read());
                         } else {
-                            // Accept the revive window (its default button revives in town)
-                            if last_revive_press.map_or(true, |t| t.elapsed() >= Duration::from_secs(10)) {
-                                slog::info!(logger, "Dead: pressing Enter to revive");
+                            // Resurrection window: click Lodestar (nearest town). Without
+                            // it on screen, Enter as before.
+                            let lodestar = image_analyzer.image().and_then(revive::find_lodestar);
+                            let log_due = last_revive_press.map_or(true, |t| t.elapsed() >= Duration::from_secs(10));
+                            match lodestar {
+                                Some(point) => {
+                                    if log_due {
+                                        slog::info!(logger, "Dead: clicking Lodestar to revive in the nearest town"; "x" => point.x, "y" => point.y);
+                                    }
+                                    eval_simple_click(&window, point);
+                                    std::thread::sleep(Duration::from_millis(1500));
+                                }
+                                None => {
+                                    if log_due {
+                                        slog::info!(logger, "Dead: Resurrection window not found, pressing Enter");
+                                    }
+                                    eval_send_key(&window, "Enter", KeyMode::Press);
+                                    std::thread::sleep(Duration::from_millis(500));
+                                }
+                            }
+                            if log_due {
                                 last_revive_press = Some(std::time::Instant::now());
                             }
-                            eval_send_key(&window, "Enter", KeyMode::Press);
-                            std::thread::sleep(Duration::from_millis(500));
                         }
                         true
                     }
