@@ -21,6 +21,7 @@ Date format: `DD/MM/YYYY`
     - After a kill, if something is still hitting you, the closest monster (red names first) is attacked before looking further away. A lone red name right after killing a red mob is no longer ignored when you're being hit
     - Clicking a monster tries up to 4 spots down from the name tag until the attack cursor shows, so bigger monsters (Captains) get selected instead of missed
 - Monster names
+    - Skill messages over your head ("You use Perfect Block.") and tooltips ("Sex: Female") are no longer clicked as monsters. In a 30 min test they were about 1 in 6 name reads
     - Name reading keeps the soft edges of the letters and enlarges them smoothly, so Windows OCR can read the tiny name font (it returned nothing before)
 - Debug
     - Screenshot recorder (Farming Settings): saves frames + detection results to the recordings folder for offline testing
