@@ -25,6 +25,7 @@ Date format: `DD/MM/YYYY`
     - Skill messages over your head ("You use Perfect Block.") and tooltips ("Sex: Female") are no longer clicked as monsters. In a 30 min test they were about 1 in 6 name reads
     - Name reading keeps the soft edges of the letters and enlarges them smoothly, so Windows OCR can read the tiny name font (it returned nothing before)
 - Debug
+    - When /position can't be read, the screen is saved to recordings/snapshots (first 3 per run) and the log shows the file
     - Screenshot recorder (Farming Settings): saves frames + detection results to the recordings folder for offline testing
     - Copy logs / Log folder buttons, log file with crash backtraces
 - Duo (farmer + healer on one PC)
