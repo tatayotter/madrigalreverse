@@ -61,6 +61,22 @@ pub fn start(frames: u32, interval_ms: u64) -> Option<PathBuf> {
     Some(dir)
 }
 
+/// Save one frame for debugging (e.g. a failed /position read), at most `MAX_SNAPSHOTS`
+/// per run so it can't fill the disk. Returns where it went.
+pub fn save_snapshot(image: &libscreenshot::ImageBuffer, name: &str) -> Option<PathBuf> {
+    use std::sync::atomic::{ AtomicU32, Ordering };
+    static SAVED: AtomicU32 = AtomicU32::new(0);
+    const MAX_SNAPSHOTS: u32 = 3;
+    if SAVED.fetch_add(1, Ordering::Relaxed) >= MAX_SNAPSHOTS {
+        return None;
+    }
+    let dir = BASE_DIR.get()?.join("snapshots");
+    fs::create_dir_all(&dir).ok()?;
+    let path = dir.join(format!("{}_{}.png", name, chrono_like_now()));
+    image.save(&path).ok()?;
+    Some(path)
+}
+
 pub fn stop() {
     *ACTIVE.lock() = None;
 }

@@ -419,11 +419,21 @@ impl FarmingBehavior<'_> {
         ]);
         image.capture_window(self.logger);
         let read = image.image().and_then(|img| position::read(img, self.logger));
+        if read.is_none() {
+            self.snapshot_failed_read(image, "position");
+        }
         play!(self.movement => [
             PressKey("Escape"),
             Wait(dur::Fixed(100)),
         ]);
         read
+    }
+
+    /// Save what the screen looked like when a read failed, so it can be checked.
+    fn snapshot_failed_read(&self, image: &ImageAnalyzer, name: &str) {
+        if let Some(path) = image.image().and_then(|img| crate::recorder::save_snapshot(img, name)) {
+            slog::info!(self.logger, "Saved a screenshot of the failed read, send it to Claude"; "file" => path.display().to_string());
+        }
     }
 
     /// Open the map (M), read the region name from its top bar, close it again.
@@ -675,6 +685,9 @@ impl FarmingBehavior<'_> {
         ]);
         image.capture_window(self.logger);
         let pos = image.image().and_then(|img| position::read(img, self.logger));
+        if pos.is_none() {
+            self.snapshot_failed_read(image, "position_dead");
+        }
         // If Enter revived us instead, this is the town, not where we died
         let snapshot = image.clone();
         image.client_stats.update(&snapshot, self.logger);
