@@ -32,6 +32,12 @@ const DUO_LOG_INTERVAL_MS: u128 = 5000;
 const NAME_SCAN_COOLDOWN_MS: u128 = 1000;
 /// How many nearby mobs to read names of per danger scan.
 const NAME_SCAN_MAX_MOBS: usize = 3;
+/// Click attack: press the attack slot only after the monster's HP hasn't moved for this long
+const CLICK_ATTACK_NUDGE_MS: u128 = 2000;
+/// Click attack: attack slots with at least this cooldown are skills, used on their cooldown
+const CLICK_ATTACK_SKILL_COOLDOWN_MS: u32 = 1000;
+/// Look around: wait after each camera turn so the next screenshot shows the new view
+const LOOK_AROUND_SETTLE_MS: u64 = 250;
 
 #[derive(Debug, Clone, Copy)]
 enum State {
@@ -54,6 +60,10 @@ pub struct FarmingBehavior<'a> {
     last_kill_time: Instant,
     avoided_bounds: Vec<(Bounds, Instant, u128)>,
     rotation_movement_tries: u32,
+    /// Look around: turn left on this sweep instead of right
+    look_left: bool,
+    /// Click attack: last time the attack slot was pressed to restart a stalled fight
+    last_attack_nudge: Option<Instant>,
     is_attacking: bool,
     kill_count: u32,
     obstacle_avoidance_count: u32,
@@ -124,6 +134,8 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             avoided_bounds: vec![],
             is_attacking: false,
             rotation_movement_tries: 0,
+            look_left: false,
+            last_attack_nudge: None,
             kill_count: 0,
             obstacle_avoidance_count: 0,
             last_summon_pet_time: None,
@@ -1139,26 +1151,36 @@ impl FarmingBehavior<'_> {
             self.last_no_ennemy_time = Some(Instant::now());
         }
         use crate::movement::prelude::*;
-        // Try rotating first in order to locate nearby enemies
-        if self.rotation_movement_tries < 30 {
+        // Look around first: turn the camera with the arrow keys one step at a time and
+        // rescan after each step, before walking anywhere
+        let steps = config.look_around_steps();
+        if self.rotation_movement_tries < steps {
+            if self.rotation_movement_tries == 0 {
+                slog::debug!(self.logger, "No monster on screen, looking around"; "direction" => if self.look_left { "left" } else { "right" });
+            }
+            let direction = if self.look_left { rot::Left } else { rot::Right };
             play!(self.movement => [
-                // Rotate in random direction for a random duration
-                Rotate(rot::Right, dur::Fixed(50)),
-                // Wait a bit to wait for monsters to enter view
-                Wait(dur::Fixed(50)),
+                Rotate(direction, dur::Fixed(config.look_around_step())),
+                // Let the camera settle so the next screenshot shows the new view
+                Wait(dur::Fixed(LOOK_AROUND_SETTLE_MS)),
             ]);
             self.rotation_movement_tries += 1;
 
             // Transition to next state
             return State::SearchingForEnemy;
         }
+        if steps > 0 {
+            slog::debug!(self.logger, "Looked all around, no monster in view");
+        }
+        // Next sweep goes the other way
+        self.look_left = !self.look_left;
+        self.rotation_movement_tries = 0;
 
-        // Check whether bot should stay in area
+        // Move somewhere else (circle pattern), then look around again from there
         let circle_pattern_rotation_duration = config.circle_pattern_rotation_duration();
         if circle_pattern_rotation_duration > 0 {
             self.move_circle_pattern(circle_pattern_rotation_duration);
         } else {
-            self.rotation_movement_tries = 0;
             return self.state;
         }
         // Transition to next state
@@ -1271,12 +1293,49 @@ impl FarmingBehavior<'_> {
                     }
                     // Transition to next state
                     State::EnemyFound(*mob)
+                } else if let Some(mob) = self.find_fallback_mob(config, image, &mobs, &mob_list, max_distance) {
+                    // The preferred (red) monsters are out of reach or skipped: take the
+                    // closest other one instead of standing around
+                    if !self.name_allows_attack(config, image, &mob) {
+                        self.avoided_bounds.push((mob.bounds.grow_by(5), Instant::now(), 3000));
+                        return State::SearchingForEnemy;
+                    }
+                    slog::debug!(self.logger, "No red name in reach, taking the closest other monster"; "type" => format!("{:?}", mob.target_type));
+                    State::EnemyFound(mob)
                 } else {
                     // Transition to next state
-                    State::SearchingForEnemy
+                    State::NoEnemyFound
                 }
             }
         }
+    }
+
+    /// When the prioritized list (red names) has nothing in reach, the closest monster
+    /// that wasn't in it: passive ones (if HP allows) and aggressive ones, never violets.
+    fn find_fallback_mob(
+        &self,
+        config: &FarmingConfig,
+        image: &ImageAnalyzer,
+        mobs: &[Target],
+        tried: &[Target],
+        max_distance: i32,
+    ) -> Option<Target> {
+        let hp_ok = image.client_stats.hp.value >= config.min_hp_attack();
+        let others: Vec<Target> = mobs
+            .iter()
+            .filter(|m| !tried.iter().any(|t| t.bounds == m.bounds))
+            .filter(|m| match m.target_type {
+                TargetType::Mob(MobType::Passive) => hp_ok,
+                TargetType::Mob(MobType::Aggressive) => true,
+                _ => false,
+            })
+            .cloned()
+            .collect();
+        if others.is_empty() {
+            return None;
+        }
+        let avoid = if self.avoided_bounds.is_empty() { None } else { Some(&self.avoided_bounds) };
+        image.find_closest_mob(others.as_slice(), avoid, max_distance, self.logger).copied()
     }
 
     fn prioritize_aggro(
@@ -1437,6 +1496,37 @@ impl FarmingBehavior<'_> {
         self.state
     }
 
+    /// Press the attack slots during a fight. With click attack on, the click on the monster
+    /// already started the fight, so the plain attack slot is only pressed when the monster's
+    /// HP hasn't moved for a while (the attack didn't start or stopped). Attack slots with a
+    /// cooldown of a second or more are skills and are still used on their cooldown.
+    fn use_attack_slots(&mut self, config: &FarmingConfig, image: &ImageAnalyzer) {
+        if !config.click_attack() {
+            self.get_slot_for(config, None, SlotType::AttackSkill, true);
+            return;
+        }
+        let usable = config.get_all_usable_slot_for_type(SlotType::AttackSkill, self.slots_usage_last_time);
+        if let Some(skill) = usable.iter().copied().find(|&(bar, slot)| {
+            config.get_slot_cooldown(bar, slot).unwrap_or(0) >= CLICK_ATTACK_SKILL_COOLDOWN_MS
+        }) {
+            self.send_slot(skill);
+            return;
+        }
+        let hp_still_for = image.client_stats.target_hp.last_update_time.map_or(0, |t| t.elapsed().as_millis());
+        let stalled = self.last_initial_attack_time.elapsed().as_millis() >= CLICK_ATTACK_NUDGE_MS
+            && hp_still_for >= CLICK_ATTACK_NUDGE_MS;
+        let nudged_recently = self
+            .last_attack_nudge
+            .map_or(false, |t| t.elapsed().as_millis() < CLICK_ATTACK_NUDGE_MS);
+        if stalled && !nudged_recently {
+            if let Some(slot) = usable.first().copied() {
+                slog::debug!(self.logger, "Monster's HP isn't going down, pressing attack"; "hp_still_ms" => hp_still_for as u64);
+                self.send_slot(slot);
+                self.last_attack_nudge = Some(Instant::now());
+            }
+        }
+    }
+
     fn on_attacking(
         &mut self,
         config: &FarmingConfig,
@@ -1452,6 +1542,7 @@ impl FarmingBehavior<'_> {
             self.last_initial_attack_time = Instant::now();
             self.is_attacking = true;
             self.already_attack_count = 0;
+            self.last_attack_nudge = None;
             /*  } */
         }
 
@@ -1472,7 +1563,7 @@ impl FarmingBehavior<'_> {
                     return State::SearchingForEnemy;
                 }
             }
-            self.get_slot_for(config, None, SlotType::AttackSkill, true);
+            self.use_attack_slots(config, image);
 
             if config.max_aoe_farming() > 1 {
 

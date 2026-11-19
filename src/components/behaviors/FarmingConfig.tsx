@@ -45,6 +45,7 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
     const namesModal = useModal(debugModal)
     const areaModal = useModal(debugModal)
     const duoModal = useModal(debugModal)
+    const attackModal = useModal(debugModal)
 
     const selectedMobType = useRef(0)
 
@@ -63,6 +64,9 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
         'prioritize_aggro': true,
         'interval_between_buffs': 2000,
         'aoe_farming': 1,
+        'click_attack': true,
+        'look_around_steps': 12,
+        'look_around_step': 200,
     }
 
     DefaultValuesChecker(config, defaultValues, onChange)
@@ -115,6 +119,10 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                     <ConfigTableRow
                         label={<ConfigLabel name="Mobs detection" helpText="" />}
                         item={<button onClick={mobsNameDebugModal.open}>Edit</button>}
+                    />
+                    <ConfigTableRow
+                        label={<ConfigLabel name="Attack & look around" helpText="How the bot starts a fight, and how it turns the camera to find monsters" />}
+                        item={<button onClick={attackModal.open}>Edit</button>}
                     />
                     <ConfigTableRow
                         label={<ConfigLabel name="Avoidances" helpText="" />}
@@ -198,6 +206,25 @@ const FarmingConfig = ({ className, info, config, onChange, botStopWatch, botSta
                         layout="v"
                         label={<ConfigLabel name="Obstacle avoidance max try" helpText="After this number of try it'll abort attack and search for another target" />}
                         item={<NumericInput unit='#' value={config.obstacle_avoidance_max_try} onChange={value => onChange({...config, obstacle_avoidance_max_try: value})} />}
+                    />
+                </ConfigTable>
+            }/>
+            <Modal isShowing={attackModal.isShown} hide={attackModal.close} title={<h4>Attack & look around</h4>} body={
+                <ConfigTable>
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Click attack" helpText="Turn on if the game is set to attack with a single click. The click on the monster starts the fight, so attack slots are only pressed when the monster's HP stops going down for 2 seconds. Attack slots with a cooldown of 1 second or more (skills) are still used on their cooldown. Default: on" />}
+                        item={<BooleanSlider value={config.click_attack ?? true} onChange={value => onChange?.({ ...config, click_attack: value })} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Look around steps" helpText="When no monster is on screen, turn the camera with the arrow keys this many times, checking the screen after each turn, before walking somewhere else. 0 turns it off. Default: 12" />}
+                        item={<NumericInput unit='#' value={config.look_around_steps} onChange={value => onChange({...config, look_around_steps: value})} />}
+                    />
+                    <ConfigTableRow
+                        layout="v"
+                        label={<ConfigLabel name="Look around step" helpText="How long the arrow key is held for each turn. Raise it if the camera turns too little, lower it if monsters get skipped. Default: 200 ms" />}
+                        item={<TimeInput value={config.look_around_step} onChange={value => onChange({...config, look_around_step: value})} />}
                     />
                 </ConfigTable>
             }/>
