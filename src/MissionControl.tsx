@@ -16,7 +16,7 @@ import { FrontendInfoModel } from "./models/FrontendInfo"
 import { invoke } from "@tauri-apps/api"
 import { writeText } from "@tauri-apps/api/clipboard"
 import { useStopWatch } from "./components/utils/StopWatch"
-import { LuAppWindow, LuCheck, LuCopy, LuCrosshair, LuFolderOpen, LuHeartPulse, LuMaximize2, LuMegaphone, LuMinimize2, LuPlay, LuSquare } from "react-icons/lu"
+import { LuAppWindow, LuCheck, LuCopy, LuCrosshair, LuFolderOpen, LuHeartPulse, LuMaximize2, LuMegaphone, LuMinimize2, LuPlay, LuPlus, LuSquare } from "react-icons/lu"
 
 //type Bounds = {x: number, y: number, w: number, h: number}
 
@@ -135,6 +135,7 @@ const MissionControl = ({ className, profileId = "", lastVersion, currentVersion
                         {!isNil(config?.mode) && <button className="btn sm ghost" title="Bring the game window to the front" onClick={() => {invoke("focus_client")}}><LuAppWindow size={13} />Focus</button>}
                         <button className="btn sm ghost" title="Copy the latest log lines to paste into a bug report" onClick={copyLogs}>{logsCopied ? <><LuCheck size={13} />Copied</> : <><LuCopy size={13} />Copy logs</>}</button>
                         <button className="btn sm ghost" title="Open the folder with the log files" onClick={() => {invoke("open_log_folder")}}><LuFolderOpen size={13} />Logs</button>
+                        <button className="btn sm ghost" title="Open another launcher window to start a second profile (e.g. the healer) next to this one" onClick={() => {invoke("open_instance", {profileId: null})}}><LuPlus size={13} />Profile</button>
                     </div>
                     {!isNil(config?.mode) && engageBtn("lg block")}
                 </div>

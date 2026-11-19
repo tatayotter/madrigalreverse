@@ -4,6 +4,7 @@ mod behavior;
 mod data;
 mod duo;
 mod image_analyzer;
+mod instance;
 mod ipc;
 mod log_file;
 mod monster_db;
@@ -22,7 +23,7 @@ use guard::guard;
 use ipc::FrontendInfo;
 use parking_lot::RwLock;
 use slog::{ Drain, Level, Logger };
-use tauri::{ LogicalSize, Manager, Size, Window };
+use tauri::{ LogicalPosition, LogicalSize, Manager, Position, Size, Window };
 
 use crate::{
     behavior::{ Behavior, FarmingBehavior, ShoutBehavior, SupportBehavior },
@@ -37,7 +38,12 @@ use crate::{
 struct AppState {
     logger: Logger,
     version: String,
+    /// 1 for the first Neuz window running, 2 for the second, ...
+    instance: u32,
 }
+
+/// How far each extra Neuz window is moved so they don't stack exactly.
+const INSTANCE_OFFSET: f64 = 40.0;
 
 fn main() {
     // Generate tauri context
@@ -58,8 +64,13 @@ fn main() {
         slog_async::Async::new(drain).build().fuse()
     };
     // Also write everything from Debug up to a log file (see log_file.rs)
-    let file_drain = tauri::api::path::app_log_dir(context.config())
-        .and_then(log_file::open)
+    let log_dir = tauri::api::path::app_log_dir(context.config());
+    let instance = log_dir
+        .as_ref()
+        .and_then(|dir| fs::create_dir_all(dir).ok().map(|_| instance::acquire_number(dir)))
+        .unwrap_or(1);
+    let file_drain = log_dir
+        .and_then(|dir| log_file::open(dir, instance))
         .map(|file| {
             let decorator = slog_term::PlainSyncDecorator::new(file);
             slog_term::FullFormat::new(decorator).build().filter_level(Level::Debug).fuse()
@@ -72,16 +83,29 @@ fn main() {
         None => Logger::root(drain, slog::o!()),
     };
     log_file::install_panic_hook();
-    slog::info!(logger, "Neuz started"; "version" => &neuz_version);
+    slog::info!(logger, "Neuz started"; "version" => &neuz_version, "window" => instance);
 
     // Build app
     tauri::Builder
         ::default()
-        .manage(AppState { logger, version: neuz_version.clone() })
+        .manage(AppState { logger, version: neuz_version.clone(), instance })
+        .setup(move |app| {
+            // Put the second launcher next to the first one instead of on top
+            if instance > 1 {
+                if let Some(main) = app.get_window("main") {
+                    let step = f64::from(instance - 1);
+                    drop(main.set_position(Position::Logical(LogicalPosition { x: 560.0 * step, y: 0.0 })));
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(
             tauri::generate_handler![
                 start_bot,
                 create_window,
+                open_instance,
+                get_startup_profile,
+                get_running_profiles,
                 get_profiles,
                 create_profile,
                 remove_profile,
@@ -322,7 +346,16 @@ fn reset_profile(profile_id: String, _state: tauri::State<AppState>, app_handle:
 }
 
 #[tauri::command]
-async fn create_window(profile_id: String, app_handle: tauri::AppHandle) {
+async fn create_window(
+    profile_id: String,
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle
+) -> Result<(), String> {
+    if let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() {
+        drop(fs::create_dir_all(&app_data_dir));
+        instance::claim_profile(&app_data_dir, &profile_id)?;
+    }
+
     let window = tauri::WindowBuilder
         ::new(
             &app_handle,
@@ -336,11 +369,61 @@ async fn create_window(profile_id: String, app_handle: tauri::AppHandle) {
         .inner_size(800.0, 600.0)
         .title(format!("{} | Flyff Universe", profile_id))
         .build()
-        .unwrap();
+        .map_err(|e| e.to_string())?;
+
+    // Shift the second game window a little so both title bars stay visible
+    if state.instance > 1 {
+        if let (Ok(pos), Ok(scale)) = (window.outer_position(), window.scale_factor()) {
+            let pos = pos.to_logical::<f64>(scale);
+            let step = INSTANCE_OFFSET * f64::from(state.instance - 1);
+            drop(window.set_position(Position::Logical(LogicalPosition { x: pos.x + step, y: pos.y + step })));
+        }
+    }
     drop(window.show());
 
     let main_window = app_handle.get_window("main").unwrap();
     drop(main_window.set_title(format!("{} Neuz | MadrigalStreetCartel", profile_id).as_str()));
+    Ok(())
+}
+
+/// Opens another Neuz window, so two profiles (e.g. farmer and healer) can
+/// run at the same time. With a profile it starts that profile right away;
+/// without one it shows the launcher.
+#[tauri::command]
+fn open_instance(profile_id: Option<String>, state: tauri::State<AppState>) -> Result<(), String> {
+    slog::info!(state.logger, "Opening another Neuz window"; "profile" => profile_id.clone().unwrap_or_default());
+    instance::spawn(profile_id.as_deref())
+}
+
+/// The profile this window was opened for (see open_instance), if any.
+#[tauri::command]
+fn get_startup_profile() -> Option<String> {
+    instance::startup_profile()
+}
+
+/// Profiles running in other Neuz windows right now (names without "profile_").
+#[tauri::command]
+fn get_running_profiles(app_handle: tauri::AppHandle) -> Vec<String> {
+    let Some(app_data_dir) = app_handle.path_resolver().app_data_dir() else {
+        return vec![];
+    };
+    get_profiles_in(&app_data_dir)
+        .into_iter()
+        .map(|p| p.replacen("profile_", "", 1))
+        .filter(|p| instance::is_profile_running(&app_data_dir, p))
+        .collect()
+}
+
+fn get_profiles_in(app_data_dir: &Path) -> Vec<String> {
+    fs::read_dir(app_data_dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|e| e.file_name().to_str().map(String::from))
+                .filter(|name| name.starts_with("profile_"))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn should_disconnect_on_death(config: &BotConfig) -> bool {

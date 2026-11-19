@@ -1,4 +1,4 @@
-import { useReducer, useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api'
 import styled from 'styled-components'
 
@@ -7,15 +7,18 @@ import useModal from './components/utils/UseModal'
 import { getVersion } from '@tauri-apps/api/app'
 import YesNoModal from './components/YesNoModal'
 import TextInput from './components/config/TextInput'
-import { LuCopy, LuPencil, LuPlay, LuPlus, LuRefreshCw, LuRotateCcw, LuTrash2 } from 'react-icons/lu'
+import { LuAppWindow, LuCopy, LuPencil, LuPlay, LuPlus, LuRefreshCw, LuRotateCcw, LuTrash2 } from 'react-icons/lu'
 
 type Props = {
     className?: string,
 }
 
 const Launcher = ({ className }: Props) => {
-    const [hasEnteredMainLoop, enterMainLoop] = useReducer(() => true, false);
+    const [isStarting, setIsStarting] = useState(false)
     const [isLaunched, setIsLaunched] = useState(false)
+    // Profiles running in other Neuz windows, and the last launch error
+    const [running, setRunning] = useState<string[]>([])
+    const [notice, setNotice] = useState("")
 
     const [currentVersion, setCurrentVersion] = useState("NaN")
     const lastVersion = useRef("NaN")
@@ -34,17 +37,39 @@ const Launcher = ({ className }: Props) => {
     const [newProfile,setNewProfile] = useState("")
 
     const hasProfile = profileId !== ""
+    const isRunning = (pid: string) => running.includes(pid)
+    const canStart = hasProfile && !isRunning(profileId)
     const sortedProfiles = [...idList].sort((a, b) => a.localeCompare(b))
 
     const launch = (pid: string = profileId) => {
-        if (!hasEnteredMainLoop && pid !== "" ) {
-            setPID(pid)
-            enterMainLoop()
-            invoke('create_window',{profileId: pid}).then(()=> {
-                invoke('start_bot',{profileId: pid}).then(()=> {setIsLaunched(true)})
-            })
-
+        if (isStarting || pid === "") return
+        if (isRunning(pid)) {
+            setNotice(`${pid} is already running in another window.`)
+            return
         }
+        setPID(pid)
+        setIsStarting(true)
+        invoke('create_window', {profileId: pid}).then(() => {
+            invoke('start_bot', {profileId: pid}).then(() => {setIsLaunched(true)})
+        }).catch((error) => {
+            setNotice(String(error))
+            setIsStarting(false)
+            refreshRunning()
+        })
+    }
+
+    // Start a profile in a new Neuz window and keep this launcher open, so
+    // the farmer and the healer can both be started from here.
+    const launchInNewWindow = (pid: string = profileId) => {
+        if (pid === "") return
+        if (isRunning(pid)) {
+            setNotice(`${pid} is already running in another window.`)
+            return
+        }
+        setNotice("")
+        invoke('open_instance', {profileId: pid})
+            .then(() => setRunning((old) => [...old, pid]))
+            .catch((error) => setNotice(`Couldn't open a new window: ${error}`))
     }
 
     const getData=()=>{
@@ -71,6 +96,13 @@ const Launcher = ({ className }: Props) => {
         invoke('get_profiles').then((value: any)=> {
             if(value) setList(value);
         })
+        refreshRunning()
+    }
+
+    const refreshRunning = () => {
+        invoke('get_running_profiles').then((value: any) => {
+            if (Array.isArray(value)) setRunning(value)
+        })
     }
 
     useEffect(() => {
@@ -78,6 +110,22 @@ const Launcher = ({ className }: Props) => {
         refreshProfiles()
 
     },[currentVersion])
+
+    // Opened with a profile from another window ("Start in new window"):
+    // start it right away.
+    useEffect(() => {
+        invoke('get_startup_profile').then((value: any) => {
+            if (typeof value === "string" && value !== "") launch(value)
+        })
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // Keep the "running" marks up to date while the launcher is showing
+    useEffect(() => {
+        if (isLaunched) return
+        const timer = setInterval(refreshRunning, 2000)
+        return () => clearInterval(timer)
+    }, [isLaunched])
 
     return (
             <div className={className}>
@@ -175,13 +223,15 @@ const Launcher = ({ className }: Props) => {
                             <ul className="profile-list">
                                 {sortedProfiles.map((pid) => {
                                     const name = pid.replaceAll("profile_", "")
+                                    const busy = isRunning(name)
                                     return (
                                         <li key={pid}
-                                            className={name === profileId ? "selected" : ""}
-                                            onClick={() => setPID(name)}
+                                            className={`${name === profileId ? "selected" : ""} ${busy ? "running" : ""}`}
+                                            onClick={() => {setPID(name); setNotice("")}}
                                             onDoubleClick={() => launch(name)}
-                                            title="Double-click to start">
+                                            title={busy ? "Running in another Neuz window" : "Double-click to start"}>
                                             {name}
+                                            {busy && <span className="tag">running</span>}
                                         </li>
                                     )
                                 })}
@@ -196,9 +246,18 @@ const Launcher = ({ className }: Props) => {
                             </div>
                         </section>
 
-                        <button className={`btn lg primary block ${hasProfile ? "" : "disabled"}`} onClick={() => launch()}>
-                            <LuPlay size={15} />{hasProfile ? `Start ${profileId}` : "Select a profile"}
-                        </button>
+                        {notice && <p className="notice">{notice}</p>}
+
+                        <div className="start-row">
+                            <button className={`btn lg primary block ${canStart && !isStarting ? "" : "disabled"}`} onClick={() => canStart && launch()}
+                                title="Start this profile in this window">
+                                <LuPlay size={15} />{!hasProfile ? "Select a profile" : isRunning(profileId) ? `${profileId} is running` : `Start ${profileId}`}
+                            </button>
+                            <button className={`btn lg ${canStart && !isStarting ? "" : "disabled"}`} onClick={() => canStart && launchInNewWindow()}
+                                title="Start this profile in its own new window and keep this launcher open, to run two profiles (e.g. farmer and healer) at once">
+                                <LuAppWindow size={15} />New window
+                            </button>
+                        </div>
                     </div>
                 )}
                 {isLaunched && (
@@ -304,7 +363,40 @@ export default styled(Launcher)`
                 border-color: rgba(76, 141, 255, .35);
                 color: #fff;
             }
+
+            &.running {
+                color: var(--text-muted);
+            }
+
+            & .tag {
+                margin-left: auto;
+                padding: 1px 6px;
+                border-radius: 999px;
+                font-size: 11px;
+                background: var(--surface-2);
+                color: var(--text-muted);
+            }
         }
+    }
+
+    & .start-row {
+        display: flex;
+        gap: 8px;
+
+        & .btn.block {
+            flex: 1;
+        }
+
+        & .btn:not(.block) {
+            flex: none;
+            white-space: nowrap;
+        }
+    }
+
+    & .notice {
+        margin: 0;
+        font-size: 12px;
+        color: var(--text-muted);
     }
 
     & .profile-actions {
