@@ -174,6 +174,13 @@ pub struct FarmingConfig {
     /// Search for mob circle pattern
     circle_pattern_rotation_duration: Option<u64>,
 
+    /// The game attacks on a single click: don't keep pressing the attack slot
+    click_attack: Option<bool>,
+    /// No monster on screen: turn the camera this many times before wandering
+    look_around_steps: Option<u32>,
+    /// How long an arrow key is held per look-around turn (ms)
+    look_around_step: Option<u64>,
+
     /// Disable farming
     farming_enabled: Option<bool>,
 
@@ -326,6 +333,18 @@ impl FarmingConfig {
 
     pub fn circle_pattern_rotation_duration(&self) -> u64 {
         self.circle_pattern_rotation_duration.unwrap_or(30)
+    }
+
+    pub fn click_attack(&self) -> bool {
+        self.click_attack.unwrap_or(true)
+    }
+
+    pub fn look_around_steps(&self) -> u32 {
+        self.look_around_steps.unwrap_or(12)
+    }
+
+    pub fn look_around_step(&self) -> u64 {
+        self.look_around_step.unwrap_or(200)
     }
 
     pub fn obstacle_avoidance_cooldown(&self) -> u128 {
@@ -696,6 +715,9 @@ mod default_tests {
             "prioritize_aggro" => c.prioritize_aggro().to_string(),
             "interval_between_buffs" => c.interval_between_buffs().to_string(),
             "aoe_farming" => c.max_aoe_farming().to_string(),
+            "click_attack" => c.click_attack().to_string(),
+            "look_around_steps" => c.look_around_steps().to_string(),
+            "look_around_step" => c.look_around_step().to_string(),
             _ => return None,
         })
     }
