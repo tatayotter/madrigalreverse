@@ -3,6 +3,7 @@
 //!
 //! Location (Windows): %LOCALAPPDATA%\inc.madrigalstreetcartel.neuz\logs\neuz.log
 //! The log from the previous run is kept as neuz.previous.log.
+//! A second Neuz window running at the same time writes neuz.2.log, and so on.
 
 use std::{
     fs::{self, File, OpenOptions},
@@ -11,29 +12,38 @@ use std::{
     sync::OnceLock,
 };
 
-const LOG_NAME: &str = "neuz.log";
-const PREVIOUS_LOG_NAME: &str = "neuz.previous.log";
 /// Only the end of the file is read when copying, to keep the clipboard small.
 const MAX_COPY_BYTES: u64 = 256 * 1024;
 
 static LOG_DIR: OnceLock<PathBuf> = OnceLock::new();
+static LOG_NAME: OnceLock<String> = OnceLock::new();
+
+/// neuz.log for the first window, neuz.2.log for the second, ...
+fn log_name(instance: u32, previous: bool) -> String {
+    let number = if instance > 1 { format!(".{instance}") } else { String::new() };
+    let previous = if previous { ".previous" } else { "" };
+    format!("neuz{number}{previous}.log")
+}
 
 pub fn log_dir() -> Option<&'static PathBuf> {
     LOG_DIR.get()
 }
 
 fn log_path() -> Option<PathBuf> {
-    log_dir().map(|dir| dir.join(LOG_NAME))
+    Some(log_dir()?.join(LOG_NAME.get()?))
 }
 
 /// Create the log folder, keep the last run's log, and open a fresh log file.
-pub fn open(dir: PathBuf) -> Option<File> {
+/// `instance` is this window's number (see instance.rs), so two Neuz windows
+/// running at once don't write to the same file.
+pub fn open(dir: PathBuf, instance: u32) -> Option<File> {
     fs::create_dir_all(&dir).ok()?;
-    let current = dir.join(LOG_NAME);
+    let current = dir.join(log_name(instance, false));
     if current.exists() {
-        let _ = fs::rename(&current, dir.join(PREVIOUS_LOG_NAME));
+        let _ = fs::rename(&current, dir.join(log_name(instance, true)));
     }
     let file = File::create(&current).ok()?;
+    let _ = LOG_NAME.set(log_name(instance, false));
     let _ = LOG_DIR.set(dir);
     Some(file)
 }
@@ -75,4 +85,17 @@ pub fn tail(max_lines: usize, version: &str) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let start = lines.len().saturating_sub(max_lines);
     header + &lines[start..].join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::log_name;
+
+    #[test]
+    fn first_window_keeps_the_old_log_names() {
+        assert_eq!(log_name(1, false), "neuz.log");
+        assert_eq!(log_name(1, true), "neuz.previous.log");
+        assert_eq!(log_name(2, false), "neuz.2.log");
+        assert_eq!(log_name(2, true), "neuz.2.previous.log");
+    }
 }
