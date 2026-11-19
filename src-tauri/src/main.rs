@@ -519,6 +519,8 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
         let mut last_is_running: Option<bool> = None;
         // Diagnostics: log state changes once instead of every frame
         let mut last_alive_state: Option<AliveState> = None;
+        // The character was seen dead since Engage: the next Alive frame is a revive
+        let mut seen_dead = false;
         let mut last_capture_warn: Option<std::time::Instant> = None;
         let mut last_revive_press: Option<std::time::Instant> = None;
         let mut frontend_info: Arc<RwLock<FrontendInfo>> = Arc::new(
@@ -669,7 +671,9 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                         if !frontend_info_mut.is_alive() {
                             frontend_info_mut.set_is_alive(true);
                             let should_disconnect = should_disconnect_on_death(config);
-                            if !should_disconnect {
+                            // Only after an actual death: at Engage the character just
+                            // starts out alive, and Escape there closes the status box
+                            if !should_disconnect && std::mem::take(&mut seen_dead) {
                                 // close chat after beign rez
                                 eval_send_key(&window, "Escape", KeyMode::Press);
                                 std::thread::sleep(Duration::from_millis(1000));
@@ -681,6 +685,7 @@ fn start_bot(profile_id: String, state: tauri::State<AppState>, app_handle: taur
                         false
                     }
                     AliveState::Dead => {
+                        seen_dead = true;
                         // Duo: the healer's behavior doesn't run while dead, so report it here
                         if mode == BotMode::Support && config.support_config().duo_link() {
                             duo::publish_healer(&duo::HealerStatus {
