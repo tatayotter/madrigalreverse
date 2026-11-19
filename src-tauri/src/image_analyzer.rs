@@ -138,6 +138,20 @@ impl ImageAnalyzer {
         recv
     }
 
+    /// Like `merge_cloud_into_mobs`, but only clusters with enough matching pixels to be
+    /// a name tag. A few stray pixels of the same color (snow, monster bodies, the chat
+    /// box frame) otherwise add up to a "name" wide enough to count.
+    fn dense_clusters(cloud: &PointCloud, mob_type: TargetType) -> Vec<Target> {
+        const MIN_NAME_PIXELS: usize = 10;
+        cloud
+            .cluster_by_distance(50, point_selector::x_axis)
+            .into_iter()
+            .flat_map(|x_cluster| x_cluster.cluster_by_distance(3, point_selector::y_axis))
+            .filter(|cluster| cluster.as_ref().len() >= MIN_NAME_PIXELS)
+            .map(|cluster| Target { target_type: mob_type, bounds: cluster.to_bounds() })
+            .collect()
+    }
+
     fn merge_cloud_into_mobs(
         config: Option<&FarmingConfig>,
         cloud: &PointCloud,
@@ -350,18 +364,10 @@ impl ImageAnalyzer {
 
         // No max width filter here: big name clusters are exactly what we want to flee from.
         let min_width = config.min_mobs_name_width();
-        let dangers = Self::merge_cloud_into_mobs(
-            None,
-            &PointCloud::new(violet_coords),
-            TargetType::Mob(MobType::Violet),
-        )
-        .into_iter()
-        .chain(Self::merge_cloud_into_mobs(
-            None,
-            &PointCloud::new(giant_coords),
-            TargetType::Mob(MobType::Giant),
-        ))
-        .filter(|mob| mob.bounds.w > min_width);
+        let dangers = Self::dense_clusters(&PointCloud::new(violet_coords), TargetType::Mob(MobType::Violet))
+            .into_iter()
+            .chain(Self::dense_clusters(&PointCloud::new(giant_coords), TargetType::Mob(MobType::Giant)))
+            .filter(|mob| mob.bounds.w > min_width);
 
         let mid_x = (image.width() / 2) as i32;
         let mid_y = (image.height() / 2) as i32;
@@ -549,5 +555,23 @@ impl ImageAnalyzer {
                 None
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod danger_tests {
+    use super::*;
+
+    #[test]
+    fn stray_pixels_are_not_a_name() {
+        // Three pixels on the chat box frame, 20px apart (seen in a real screenshot)
+        let stray = PointCloud::new(vec![Point::new(434, 481), Point::new(454, 481), Point::new(474, 481)]);
+        assert!(ImageAnalyzer::dense_clusters(&stray, TargetType::Mob(MobType::Violet)).is_empty());
+
+        // A name tag: many pixels along a 9px tall line of text
+        let name = PointCloud::new((0..60).map(|i| Point::new(300 + i * 2, 200 + (i % 9))).collect::<Vec<_>>());
+        let found = ImageAnalyzer::dense_clusters(&name, TargetType::Mob(MobType::Violet));
+        assert_eq!(found.len(), 1);
+        assert!(found[0].bounds.w > 100);
     }
 }

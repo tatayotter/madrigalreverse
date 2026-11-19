@@ -38,6 +38,10 @@ const CLICK_ATTACK_NUDGE_MS: u128 = 2000;
 const CLICK_ATTACK_SKILL_COOLDOWN_MS: u32 = 1000;
 /// Look around: wait after each camera turn so the next screenshot shows the new view
 const LOOK_AROUND_SETTLE_MS: u64 = 250;
+/// Stay in area: after this many failed /position reads in a row, stop trying for a while
+const AREA_MAX_READ_FAILURES: u32 = 2;
+/// ...for this long, so farming isn't held up by reads that keep failing
+const AREA_READ_BACKOFF_SECS: u64 = 300;
 
 #[derive(Debug, Clone, Copy)]
 enum State {
@@ -98,6 +102,11 @@ pub struct FarmingBehavior<'a> {
     last_area_check: Option<Instant>,
     /// Stay in area gave up (we're far away, probably another map) until the next Engage
     area_paused: bool,
+    /// /position reads that failed in a row, and when to try again after too many
+    area_read_failures: u32,
+    area_backoff_until: Option<Instant>,
+    /// A screenshot of a failed /position read was saved since Engage (one is enough)
+    position_snapshot_saved: bool,
     navigator: Navigator,
     fly_navigator: Navigator,
     /// Revive and return: when we came back to life, and whether the trip back is still to do
@@ -164,6 +173,9 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
             last_position: None,
             last_area_check: None,
             area_paused: false,
+            area_read_failures: 0,
+            area_backoff_until: None,
+            position_snapshot_saved: false,
             navigator: Navigator::default(),
             fly_navigator: Navigator::flying(),
             revived_at: None,
@@ -186,6 +198,9 @@ impl<'a> Behavior<'a> for FarmingBehavior<'a> {
         self.home_region = None;
         self.last_area_check = None;
         self.area_paused = false;
+        self.area_read_failures = 0;
+        self.area_backoff_until = None;
+        self.position_snapshot_saved = false;
         self.revived_at = None;
         self.return_pending = false;
         self.return_attempts = 0;
@@ -431,8 +446,9 @@ impl FarmingBehavior<'_> {
         ]);
         image.capture_window(self.logger);
         let read = image.image().and_then(|img| position::read(img, self.logger));
-        if read.is_none() {
+        if read.is_none() && !self.position_snapshot_saved {
             self.snapshot_failed_read(image, "position");
+            self.position_snapshot_saved = true;
         }
         play!(self.movement => [
             PressKey("Escape"),
@@ -496,15 +512,23 @@ impl FarmingBehavior<'_> {
         let due = self
             .last_area_check
             .map_or(true, |t| t.elapsed().as_secs() >= config.area_check_interval());
-        if !due {
+        if !due || self.area_backoff_until.map_or(false, |t| Instant::now() < t) {
             return false;
         }
         self.last_area_check = Some(Instant::now());
 
         let Some(pos) = self.read_position_checked(image) else {
-            slog::warn!(self.logger, "Couldn't read the position"; "hint" => "keep the chat box visible and uncovered");
+            self.area_read_failures += 1;
+            if self.area_read_failures >= AREA_MAX_READ_FAILURES {
+                slog::warn!(self.logger, "Couldn't read the position several times, farming without it for a while"; "retry_in_s" => AREA_READ_BACKOFF_SECS, "hint" => "type /position in the chat yourself and check the reply shows in the chat box");
+                self.area_backoff_until = Some(Instant::now() + Duration::from_secs(AREA_READ_BACKOFF_SECS));
+                self.area_read_failures = 0;
+            } else {
+                slog::warn!(self.logger, "Couldn't read the position"; "hint" => "keep the chat box visible and uncovered");
+            }
             return true;
         };
+        self.area_read_failures = 0;
         let Some(home) = self.home else {
             self.home_region = self.read_region(image);
             slog::info!(self.logger, "Farming spot saved"; "x" => pos.x, "z" => pos.z, "radius" => config.area_radius(), "region" => self.home_region.as_deref().unwrap_or("?"));
